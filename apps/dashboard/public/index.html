@@ -996,6 +996,76 @@
       text-align: center;
       padding: 20px;
     }
+
+    /* 拒否理由モーダル */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .modal-content {
+      background: #2d2d2d;
+      padding: 24px;
+      border-radius: 8px;
+      max-width: 500px;
+      width: 90%;
+    }
+
+    .modal-content h3 {
+      margin-top: 0;
+      color: #e74c3c;
+    }
+
+    .modal-content p {
+      color: #aaa;
+      margin-bottom: 12px;
+    }
+
+    .modal-content label {
+      color: #888;
+      font-size: 14px;
+    }
+
+    .modal-content textarea {
+      width: 100%;
+      min-height: 100px;
+      margin: 12px 0;
+      padding: 8px;
+      background: #1a1a2e;
+      border: 1px solid #444;
+      border-radius: 4px;
+      color: #eee;
+      resize: vertical;
+      box-sizing: border-box;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .btn-cancel {
+      background: #555;
+      color: #eee;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .btn-cancel:hover {
+      background: #666;
+    }
   </style>
 </head>
 <body>
@@ -1184,6 +1254,20 @@
         <div id="weeklyReportList">
           <div class="loading">週報を取得中...</div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 拒否理由入力モーダル -->
+  <div id="rejectModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <h3>リクエストを拒否</h3>
+      <p id="rejectModalTitle"></p>
+      <label for="rejectReason">拒否理由（任意）</label>
+      <textarea id="rejectReason" placeholder="拒否理由を入力してください（省略可）"></textarea>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeRejectModal()">キャンセル</button>
+        <button class="btn-reject" onclick="confirmReject()">拒否する</button>
       </div>
     </div>
   </div>
@@ -1494,7 +1578,7 @@
           <div class="request-description">${escapeHtml(req.description)}</div>
           <div class="request-actions">
             <button class="btn-approve" onclick="approveRequest('${req.id}')">承認</button>
-            <button class="btn-reject" onclick="rejectRequest('${req.id}')">拒否</button>
+            <button class="btn-reject" onclick="rejectRequest('${req.id}', '${escapeHtml(req.title).replace(/'/g, "\\'")}')">拒否</button>
           </div>
         </li>
       `).join('');
@@ -1939,19 +2023,36 @@
       }
     }
 
-    async function rejectRequest(id) {
-      const reason = prompt('拒否理由を入力してください:');
-      if (reason === null) return;
+    let currentRejectId = null;
+
+    function rejectRequest(id, title) {
+      currentRejectId = id;
+      document.getElementById('rejectModalTitle').textContent = title || 'このリクエストを拒否しますか？';
+      document.getElementById('rejectReason').value = '';
+      document.getElementById('rejectModal').style.display = 'flex';
+    }
+
+    function closeRejectModal() {
+      document.getElementById('rejectModal').style.display = 'none';
+      currentRejectId = null;
+    }
+
+    async function confirmReject() {
+      if (!currentRejectId) return;
+
+      const reason = document.getElementById('rejectReason').value.trim();
 
       try {
-        await fetch(`${API_BASE}/api/requests/${id}/reject`, {
+        await fetch(`${API_BASE}/api/requests/${currentRejectId}/reject`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reason }),
+          body: JSON.stringify({ reason: reason || undefined }),
         });
+        closeRejectModal();
         fetchRequests();
       } catch (error) {
         console.error('Failed to reject:', error);
+        closeRejectModal();
       }
     }
 
