@@ -55,5 +55,11 @@
     ],
     "estimatedLectures": 40,
     "estimatedHours": 8
+  },
+  "metadata": {
+    "difficulty": "intermediate",
+    "aiAutonomy": 45,
+    "requiredExperience": 10,
+    "humanInteractionRequired": false
   }
 }

@@ -3,7 +3,7 @@
   "name": "小規模フリーランス案件",
   "description": "CrowdWorks、Lancers、ココナラなどで小規模なプログラミング・自動化案件を受注。スクレイピング、データ処理、簡単なWebツール作成などを中心に、低リスクで確実な収益を得る。",
   "type": "freelance",
-  "status": "active",
+  "status": "paused",
   "expectedRevenue": 1500,
   "expectedCost": 0,
   "riskLevel": 0,
@@ -11,11 +11,11 @@
   "performance": {
     "totalRevenue": 0,
     "totalCost": 0,
-    "executionCount": 2,
+    "executionCount": 3,
     "successCount": 0,
-    "failureCount": 2,
+    "failureCount": 3,
     "roi": 0,
-    "lastExecutedAt": "2026-02-04T14:47:10.297Z"
+    "lastExecutedAt": "2026-02-04T15:19:54.763Z"
   },
   "config": {
     "platforms": [
@@ -33,5 +33,12 @@
     "minHourlyRate": 1000,
     "_searchedJobs": []
   },
-  "activatedAt": "2026-02-04T13:18:33.565Z"
+  "activatedAt": "2026-02-04T13:18:33.565Z",
+  "deactivatedAt": "2026-02-04T15:19:54.764Z",
+  "metadata": {
+    "difficulty": "intermediate",
+    "aiAutonomy": 30,
+    "requiredExperience": 10,
+    "humanInteractionRequired": true
+  }
 }

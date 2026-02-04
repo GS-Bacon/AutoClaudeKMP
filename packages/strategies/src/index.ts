@@ -1,6 +1,7 @@
 export * from './strategy-manager.js';
 export * from './strategy-executor.js';
 export * from './strategy-activator.js';
+export * from './strategy-recommender.js';
 export * from './recovery-manager.js';
 export * from './strategy-validator.js';
 export * from './strategy-planner.js';

@@ -20,6 +20,7 @@ export interface Strategy {
   deactivatedAt?: Date;
   performance: StrategyPerformance;
   config: Record<string, unknown>;
+  metadata?: StrategyMetadata;
 }
 
 export enum StrategyType {
@@ -47,6 +48,16 @@ export interface StrategyPerformance {
   failureCount: number;
   lastExecutedAt?: Date;
   roi: number;
+}
+
+export type StrategyDifficulty = 'beginner' | 'intermediate' | 'advanced';
+
+export interface StrategyMetadata {
+  difficulty: StrategyDifficulty;
+  aiAutonomy: number;              // 0-100（AIで完結できる度合い）
+  requiredExperience: number;      // 推奨累計成功数
+  humanInteractionRequired: boolean;
+  requiredCapabilities?: string[];
 }
 
 export interface StrategyConfig {

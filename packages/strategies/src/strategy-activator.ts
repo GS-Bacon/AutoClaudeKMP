@@ -2,6 +2,7 @@ import { RiskLevel, getLogger } from '@auto-claude/core';
 import { getApprovalGate, getDiscordNotifier } from '@auto-claude/notification';
 import { Strategy, StrategyStatus, getStrategyManager } from './strategy-manager.js';
 import { getStrategyExecutor } from './strategy-executor.js';
+import { getStrategyRecommender } from './strategy-recommender.js';
 import { execSync } from 'child_process';
 
 const logger = getLogger('strategy-activator');
@@ -17,6 +18,7 @@ interface StrategyEvaluation {
 export class StrategyActivator {
   private strategyManager = getStrategyManager();
   private strategyExecutor = getStrategyExecutor();
+  private strategyRecommender = getStrategyRecommender();
   private approvalGate = getApprovalGate();
   private discord = getDiscordNotifier();
 
@@ -31,6 +33,7 @@ export class StrategyActivator {
     evaluated: number;
     activated: number;
     pending: number;
+    filtered: number;
   }> {
     const allStrategies = this.strategyManager.getAllStrategies();
     const draftStrategies = allStrategies.filter(
@@ -39,15 +42,38 @@ export class StrategyActivator {
 
     if (draftStrategies.length === 0) {
       logger.info('No draft strategies to evaluate');
-      return { evaluated: 0, activated: 0, pending: 0 };
+      return { evaluated: 0, activated: 0, pending: 0, filtered: 0 };
     }
+
+    // フェーズ情報をログ出力
+    const phaseInfo = this.strategyRecommender.getPhaseInfo();
+    logger.info('Current system phase', {
+      phase: phaseInfo.phase,
+      totalSuccessCount: phaseInfo.totalSuccessCount,
+      minAiAutonomy: phaseInfo.phaseConfig.minAiAutonomy,
+      allowHumanInteraction: phaseInfo.phaseConfig.allowHumanInteraction,
+    });
 
     logger.info('Evaluating draft strategies', { count: draftStrategies.length });
 
     let activated = 0;
     let pending = 0;
+    let filtered = 0;
 
     for (const strategy of draftStrategies) {
+      // フェーズに基づく適格性チェック
+      const eligibility = this.strategyRecommender.isEligible(strategy);
+      if (!eligibility.eligible) {
+        logger.info('Strategy filtered by phase requirements', {
+          strategyId: strategy.id,
+          strategyName: strategy.name,
+          phase: eligibility.phase,
+          reason: eligibility.reason,
+        });
+        filtered++;
+        continue;
+      }
+
       // Executorが対応しているかチェック
       const executor = this.strategyExecutor.findExecutor(strategy);
       if (!executor) {
@@ -109,12 +135,15 @@ export class StrategyActivator {
       evaluated: draftStrategies.length,
       activated,
       pending,
+      filtered,
+      phase: phaseInfo.phase,
     });
 
     return {
       evaluated: draftStrategies.length,
       activated,
       pending,
+      filtered,
     };
   }
 

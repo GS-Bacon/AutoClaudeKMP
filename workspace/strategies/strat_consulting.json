@@ -76,5 +76,11 @@
       "プロトタイプコード",
       "運用マニュアル"
     ]
+  },
+  "metadata": {
+    "difficulty": "advanced",
+    "aiAutonomy": 20,
+    "requiredExperience": 30,
+    "humanInteractionRequired": true
   }
 }

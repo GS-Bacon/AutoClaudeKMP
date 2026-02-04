@@ -42,5 +42,11 @@
       "下書き保存（動画制作は手動）"
     ],
     "publishFrequency": "週1-2本"
+  },
+  "metadata": {
+    "difficulty": "intermediate",
+    "aiAutonomy": 50,
+    "requiredExperience": 5,
+    "humanInteractionRequired": false
   }
 }
