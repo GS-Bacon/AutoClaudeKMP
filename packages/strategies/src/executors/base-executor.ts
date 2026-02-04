@@ -1,7 +1,12 @@
 import { RiskLevel, getLogger } from '@auto-claude/core';
 import { getApprovalGate, getDiscordNotifier } from '@auto-claude/notification';
+import {
+  getTaskRouter,
+  registerDefaultSkills,
+  PlanGeneratorInput,
+  PlanGeneratorOutput,
+} from '@auto-claude/ai-router';
 import { Strategy, StrategyType } from '../strategy-manager';
-import { execSync } from 'child_process';
 
 const logger = getLogger('base-executor');
 
@@ -48,6 +53,12 @@ export abstract class BaseExecutor {
   protected approvalGate = getApprovalGate();
   protected discord = getDiscordNotifier();
   protected logger = logger;
+  protected taskRouter = getTaskRouter();
+
+  constructor() {
+    // デフォルトスキルを登録
+    registerDefaultSkills(this.taskRouter);
+  }
 
   abstract readonly supportedTypes: StrategyType[];
 
@@ -185,25 +196,62 @@ export abstract class BaseExecutor {
   }
 
   /**
-   * 戦略に基づいた実行計画を生成する（ClaudeAIを使用）
+   * 戦略に基づいた実行計画を生成する（TaskRouterを使用）
    */
   protected async generateExecutionPlan(strategy: Strategy): Promise<ExecutionPlan> {
-    const prompt = this.buildPlanPrompt(strategy);
+    // 戦略タイプをスキル入力用に変換
+    const strategyTypeMap: Record<string, 'affiliate' | 'digital_product' | 'freelance' | 'content_creation'> = {
+      affiliate: 'affiliate',
+      digital_product: 'digital_product',
+      freelance: 'freelance',
+      content_creation: 'content_creation',
+    };
+
+    const input: PlanGeneratorInput = {
+      strategyName: strategy.name,
+      strategyDescription: strategy.description,
+      expectedRevenue: strategy.expectedRevenue,
+      strategyType: strategyTypeMap[strategy.type] || 'content_creation',
+      config: strategy.config as Record<string, unknown>,
+    };
 
     try {
-      const result = execSync(
-        `claude --print "${prompt.replace(/"/g, '\\"')}"`,
-        {
-          encoding: 'utf-8',
-          timeout: 60000,
-          maxBuffer: 10 * 1024 * 1024,
-        }
+      const result = await this.taskRouter.executeSkill<PlanGeneratorInput, PlanGeneratorOutput>(
+        'plan-generator',
+        input
       );
 
-      const plan = this.parsePlanResponse(strategy, result);
-      return plan;
+      if (!result.success || !result.data) {
+        this.logger.warn('Failed to generate plan via TaskRouter, using default plan', {
+          strategyId: strategy.id,
+          error: result.error,
+        });
+        return this.getDefaultPlan(strategy);
+      }
+
+      // PlanGeneratorOutputをExecutionPlanに変換
+      const steps: ExecutionStep[] = result.data.steps.map((step: { name: string; description: string; riskLevel: string; action: string; expectedOutput: string }, index: number) => ({
+        id: `step-${index + 1}`,
+        name: step.name,
+        description: step.description,
+        riskLevel: this.parseRiskLevel(step.riskLevel),
+        action: step.action,
+        expectedOutput: step.expectedOutput,
+        requiresApproval: step.riskLevel === 'HIGH' || step.riskLevel === 'CRITICAL',
+      }));
+
+      const maxRisk = Math.max(...steps.map((s) => s.riskLevel));
+
+      return {
+        strategyId: strategy.id,
+        strategyName: strategy.name,
+        steps,
+        totalRiskLevel: maxRisk,
+        estimatedRevenue: result.data.estimatedRevenue,
+        estimatedCost: result.data.estimatedCost,
+      };
     } catch (error) {
-      this.logger.warn('Failed to generate plan via Claude, using default plan', {
+      this.logger.warn('Failed to generate plan, using default plan', {
         strategyId: strategy.id,
         error,
       });

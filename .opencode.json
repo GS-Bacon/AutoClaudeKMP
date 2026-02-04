@@ -1,0 +1,14 @@
+{
+  "$schema": "https://opencode.ai/schema.json",
+  "provider": "zhipu",
+  "model": "glm-4.7",
+  "zhipu": {
+    "apiKey": "${ZHIPU_API_KEY}"
+  },
+  "options": {
+    "temperature": 0.3,
+    "maxTokens": 4096
+  },
+  "timeout": 180000,
+  "debug": false
+}

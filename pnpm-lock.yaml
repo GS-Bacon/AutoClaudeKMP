@@ -154,6 +154,19 @@ importers:
         specifier: ^3.22.4
         version: 3.25.76
 
+  packages/experiments:
+    dependencies:
+      '@auto-claude/core':
+        specifier: workspace:*
+        version: link:../core
+      '@auto-claude/notification':
+        specifier: workspace:*
+        version: link:../notification
+    devDependencies:
+      typescript:
+        specifier: ^5.3.0
+        version: 5.9.3
+
   packages/github:
     dependencies:
       '@auto-claude/core':
@@ -180,6 +193,22 @@ importers:
       '@auto-claude/core':
         specifier: workspace:*
         version: link:../core
+
+  packages/research:
+    dependencies:
+      '@auto-claude/ai-router':
+        specifier: workspace:*
+        version: link:../ai-router
+      '@auto-claude/core':
+        specifier: workspace:*
+        version: link:../core
+      '@auto-claude/notification':
+        specifier: workspace:*
+        version: link:../notification
+    devDependencies:
+      typescript:
+        specifier: ^5.3.0
+        version: 5.9.3
 
   packages/safety:
     dependencies:
@@ -216,6 +245,9 @@ importers:
 
   packages/strategies:
     dependencies:
+      '@auto-claude/ai-router':
+        specifier: workspace:*
+        version: link:../ai-router
       '@auto-claude/browser':
         specifier: workspace:*
         version: link:../browser

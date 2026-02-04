@@ -1,5 +1,13 @@
 import { RiskLevel, getLogger } from '@auto-claude/core';
 import { getBrowserManager } from '@auto-claude/browser';
+import {
+  KeywordResearchInput,
+  KeywordResearchOutput,
+  OutlineInput,
+  OutlineOutput,
+  ArticleWriterInput,
+  ArticleWriterOutput,
+} from '@auto-claude/ai-router';
 import { Strategy, StrategyType } from '../strategy-manager.js';
 import {
   BaseExecutor,
@@ -7,7 +15,6 @@ import {
   ExecutionStep,
   StepResult,
 } from './base-executor.js';
-import { execSync } from 'child_process';
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 
@@ -213,33 +220,47 @@ export class AffiliateExecutor extends BaseExecutor {
     const config = strategy.config as AffiliateConfig;
     const baseKeywords = config.keywords || [config.productCategory || strategy.name];
 
-    const prompt = `以下のキーワードについて、アフィリエイト記事に適した関連キーワードを10個提案してください。
+    const input: KeywordResearchInput = {
+      baseKeywords,
+      productCategory: config.productCategory,
+      language: '日本語',
+      keywordCount: 10,
+    };
 
-ベースキーワード: ${baseKeywords.join(', ')}
-商品カテゴリ: ${config.productCategory || '一般'}
+    const result = await this.taskRouter.executeSkill<KeywordResearchInput, KeywordResearchOutput>(
+      'keyword-research',
+      input
+    );
 
-JSON形式で出力:
-\`\`\`json
-{
-  "mainKeywords": ["メインキーワード1", "メインキーワード2"],
-  "relatedKeywords": ["関連1", "関連2"],
-  "longTailKeywords": ["ロングテール1", "ロングテール2"]
-}
-\`\`\``;
-
-    const result = this.executeClaudeCommand(prompt);
-    const keywords = this.parseJsonFromResponse(result);
+    if (!result.success || !result.data) {
+      logger.warn('Keyword research failed', { error: result.error });
+      // フォールバック: 入力キーワードをそのまま使用
+      const fallbackKeywords = {
+        mainKeywords: baseKeywords,
+        relatedKeywords: [],
+        longTailKeywords: [],
+      };
+      strategy.config._researchedKeywords = fallbackKeywords;
+      return {
+        stepId: step.id,
+        success: true,
+        output: JSON.stringify(fallbackKeywords),
+        revenue: 0,
+        cost: 0,
+        artifacts: { keywords: fallbackKeywords, fallbackUsed: true },
+      };
+    }
 
     // 戦略のcontextに保存
-    strategy.config._researchedKeywords = keywords;
+    strategy.config._researchedKeywords = result.data;
 
     return {
       stepId: step.id,
       success: true,
-      output: JSON.stringify(keywords),
+      output: JSON.stringify(result.data),
       revenue: 0,
       cost: 0,
-      artifacts: { keywords },
+      artifacts: { keywords: result.data, duration: result.duration },
     };
   }
 
@@ -248,42 +269,63 @@ JSON形式で出力:
     step: ExecutionStep
   ): Promise<StepResult> {
     const config = strategy.config as AffiliateConfig;
-    const keywords = (strategy.config._researchedKeywords as any) || {
-      mainKeywords: config.keywords || [strategy.name],
+    const researchedKeywords = strategy.config._researchedKeywords as KeywordResearchOutput | undefined;
+
+    // キーワードを統合
+    const keywords: string[] = [];
+    if (researchedKeywords) {
+      keywords.push(...researchedKeywords.mainKeywords);
+      keywords.push(...researchedKeywords.relatedKeywords.slice(0, 3));
+    } else if (config.keywords) {
+      keywords.push(...config.keywords);
+    } else {
+      keywords.push(strategy.name);
+    }
+
+    const input: OutlineInput = {
+      keywords,
+      contentType: config.contentType || 'review',
+      productCategory: config.productCategory,
     };
 
-    const prompt = `以下のキーワードを使って、SEOに強いアフィリエイト記事の構成を作成してください。
+    const result = await this.taskRouter.executeSkill<OutlineInput, OutlineOutput>(
+      'outline-generator',
+      input
+    );
 
-キーワード: ${JSON.stringify(keywords)}
-コンテンツタイプ: ${config.contentType || 'review'}
-商品カテゴリ: ${config.productCategory || '一般'}
-
-JSON形式で出力:
-\`\`\`json
-{
-  "title": "記事タイトル",
-  "sections": [
-    {
-      "heading": "見出し",
-      "points": ["ポイント1", "ポイント2"]
+    if (!result.success || !result.data) {
+      logger.warn('Outline generation failed', { error: result.error });
+      // フォールバック: シンプルなデフォルトアウトライン
+      const fallbackOutline: OutlineOutput = {
+        title: `${keywords[0]}の完全ガイド`,
+        sections: [
+          { heading: 'はじめに', points: ['この記事の目的', '対象読者'] },
+          { heading: `${keywords[0]}とは`, points: ['基本的な説明', '特徴'] },
+          { heading: 'おすすめポイント', points: ['メリット1', 'メリット2'] },
+          { heading: 'まとめ', points: ['重要ポイントの振り返り'] },
+        ],
+        cta: '詳細はこちらからご確認ください',
+      };
+      strategy.config._outline = fallbackOutline;
+      return {
+        stepId: step.id,
+        success: true,
+        output: JSON.stringify(fallbackOutline),
+        revenue: 0,
+        cost: 0,
+        artifacts: { outline: fallbackOutline, fallbackUsed: true },
+      };
     }
-  ],
-  "cta": "行動喚起文"
-}
-\`\`\``;
 
-    const result = this.executeClaudeCommand(prompt);
-    const outline = this.parseJsonFromResponse(result);
-
-    strategy.config._outline = outline;
+    strategy.config._outline = result.data;
 
     return {
       stepId: step.id,
       success: true,
-      output: JSON.stringify(outline),
+      output: JSON.stringify(result.data),
       revenue: 0,
       cost: 0,
-      artifacts: { outline },
+      artifacts: { outline: result.data, duration: result.duration },
     };
   }
 
@@ -292,47 +334,69 @@ JSON形式で出力:
     step: ExecutionStep
   ): Promise<StepResult> {
     const config = strategy.config as AffiliateConfig;
-    const outline = (strategy.config._outline as any) || {
-      title: strategy.name,
-      sections: [],
+    const outline = strategy.config._outline as OutlineOutput | undefined;
+    const researchedKeywords = strategy.config._researchedKeywords as KeywordResearchOutput | undefined;
+
+    if (!outline) {
+      return {
+        stepId: step.id,
+        success: false,
+        error: 'アウトラインが生成されていません',
+        revenue: 0,
+        cost: 0,
+      };
+    }
+
+    // キーワードを統合
+    const keywords: string[] = [];
+    if (researchedKeywords) {
+      keywords.push(...researchedKeywords.mainKeywords);
+      keywords.push(...researchedKeywords.relatedKeywords);
+    } else if (config.keywords) {
+      keywords.push(...config.keywords);
+    }
+
+    const input: ArticleWriterInput = {
+      outline,
+      keywords,
+      productCategory: config.productCategory,
+      affiliatePrograms: config.affiliatePrograms,
     };
 
-    const prompt = `以下の構成に基づいて、アフィリエイト記事を執筆してください。
+    const result = await this.taskRouter.executeSkill<ArticleWriterInput, ArticleWriterOutput>(
+      'article-writer',
+      input
+    );
 
-記事構成:
-${JSON.stringify(outline, null, 2)}
+    if (!result.success || !result.data) {
+      logger.warn('Article writing failed', { error: result.error });
+      // フォールバック: 最小限の記事
+      const fallbackArticle: ArticleWriterOutput = {
+        title: outline.title,
+        content: `# ${outline.title}\n\n${outline.sections.map((s: { heading: string; points: string[] }) => `## ${s.heading}\n\n${s.points.join('\n\n')}`).join('\n\n')}\n\n${outline.cta}`,
+        keywords,
+        affiliateLinkPositions: ['記事末尾'],
+      };
+      strategy.config._article = fallbackArticle;
+      return {
+        stepId: step.id,
+        success: true,
+        output: fallbackArticle.title,
+        revenue: 0,
+        cost: 0,
+        artifacts: { article: fallbackArticle, fallbackUsed: true },
+      };
+    }
 
-商品カテゴリ: ${config.productCategory || '一般'}
-アフィリエイトプログラム: ${config.affiliatePrograms?.join(', ') || '一般的なASP'}
-
-要件:
-- SEOを意識した自然な文章
-- 読者にとって価値のある情報
-- アフィリエイトリンクを挿入する場所を[AFFILIATE_LINK]で示す
-- Markdown形式
-
-JSON形式で出力:
-\`\`\`json
-{
-  "title": "記事タイトル",
-  "content": "Markdown形式の記事本文",
-  "keywords": ["キーワード1", "キーワード2"],
-  "affiliateLinkPositions": ["位置の説明1", "位置の説明2"]
-}
-\`\`\``;
-
-    const result = this.executeClaudeCommand(prompt);
-    const article = this.parseJsonFromResponse(result);
-
-    strategy.config._article = article;
+    strategy.config._article = result.data;
 
     return {
       stepId: step.id,
       success: true,
-      output: article.title,
+      output: result.data.title,
       revenue: 0,
       cost: 0,
-      artifacts: { article },
+      artifacts: { article: result.data, duration: result.duration },
     };
   }
 
@@ -422,6 +486,10 @@ status: draft
     strategy: Strategy,
     step: ExecutionStep
   ): Promise<StepResult> {
+    // 汎用アクションはClaudeを直接使用（スキル定義がないため）
+    const { getClaudeCLI } = await import('@auto-claude/ai-router');
+    const claude = getClaudeCLI();
+
     const prompt = `以下のタスクを実行し、結果をJSON形式で報告してください。
 
 戦略: ${strategy.name}
@@ -438,45 +506,42 @@ JSON形式で出力:
 }
 \`\`\``;
 
-    const result = this.executeClaudeCommand(prompt);
-    const parsed = this.parseJsonFromResponse(result);
+    const result = await claude.executeTask({
+      prompt,
+      timeout: 120000,
+      allowedTools: [],
+    });
+
+    if (!result.success) {
+      return {
+        stepId: step.id,
+        success: false,
+        error: result.error,
+        revenue: 0,
+        cost: 0,
+      };
+    }
+
+    // JSONをパース
+    const jsonMatch = result.output.match(/```json\n([\s\S]*?)\n```/);
+    let parsed: { success?: boolean; output?: string; artifacts?: Record<string, unknown> } = {};
+    if (jsonMatch) {
+      try {
+        parsed = JSON.parse(jsonMatch[1]);
+      } catch {
+        parsed = { output: result.output };
+      }
+    } else {
+      parsed = { output: result.output };
+    }
 
     return {
       stepId: step.id,
       success: parsed.success ?? true,
-      output: parsed.output || result,
+      output: parsed.output || result.output,
       revenue: 0,
       cost: 0,
       artifacts: parsed.artifacts,
     };
-  }
-
-  private executeClaudeCommand(prompt: string): string {
-    try {
-      const escapedPrompt = prompt.replace(/"/g, '\\"').replace(/\n/g, '\\n');
-      const result = execSync(`claude --print "${escapedPrompt}"`, {
-        encoding: 'utf-8',
-        timeout: 120000,
-        maxBuffer: 10 * 1024 * 1024,
-      });
-      return result;
-    } catch (error) {
-      logger.error('Claude command failed', { error });
-      throw error;
-    }
-  }
-
-  private parseJsonFromResponse(response: string): any {
-    const jsonMatch = response.match(/```json\n([\s\S]*?)\n```/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[1]);
-    }
-
-    // JSONブロックがない場合、全体をパースしてみる
-    try {
-      return JSON.parse(response);
-    } catch {
-      return { raw: response };
-    }
   }
 }
