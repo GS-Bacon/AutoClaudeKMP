@@ -1,6 +1,6 @@
 import { getLogger } from '@auto-claude/core';
 import { getDiscordNotifier } from '@auto-claude/notification';
-import { getBrowserManager, PageResult } from '../browser-manager';
+import { getBrowserManager, PageResult } from '../browser-manager.js';
 
 const logger = getLogger('platform-adapter');
 

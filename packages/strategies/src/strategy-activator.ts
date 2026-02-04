@@ -1,7 +1,7 @@
 import { RiskLevel, getLogger } from '@auto-claude/core';
 import { getApprovalGate, getDiscordNotifier } from '@auto-claude/notification';
-import { Strategy, StrategyStatus, getStrategyManager } from './strategy-manager';
-import { getStrategyExecutor } from './strategy-executor';
+import { Strategy, StrategyStatus, getStrategyManager } from './strategy-manager.js';
+import { getStrategyExecutor } from './strategy-executor.js';
 import { execSync } from 'child_process';
 
 const logger = getLogger('strategy-activator');

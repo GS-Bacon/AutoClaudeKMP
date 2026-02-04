@@ -7,7 +7,7 @@ import {
   PostResult,
   SearchResult,
   SearchItem,
-} from './base-adapter';
+} from './base-adapter.js';
 
 const logger = getLogger('zenn-adapter');
 

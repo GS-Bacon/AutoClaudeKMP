@@ -264,7 +264,7 @@ export class StrategyPlanner {
       scenarios.push({
         description: 'システム全体に影響を与える障害が発生',
         probability: 'low',
-        impact: 'critical',
+        impact: 'high',
         mitigation: 'サンドボックス環境でのテスト、ロールバック計画の策定',
       });
     }
@@ -277,7 +277,7 @@ export class StrategyPlanner {
     }
 
     // 全体リスクレベルの決定
-    const hasHighImpact = scenarios.some(s => s.impact === 'high' || s.impact === 'critical');
+    const hasHighImpact = scenarios.some(s => s.impact === 'high');
     const hasHighProbability = scenarios.some(s => s.probability === 'high');
 
     let overallRisk: 'low' | 'medium' | 'high' = 'low';
@@ -459,7 +459,7 @@ export class StrategyPlanner {
 
     // 高影響度のリスクシナリオ
     for (const scenario of plan.riskAnalysis.scenarios) {
-      if (scenario.impact === 'critical' && scenario.probability !== 'low') {
+      if (scenario.impact === 'high' && scenario.probability !== 'low') {
         blockers.push(`リスク: ${scenario.description}`);
       }
     }

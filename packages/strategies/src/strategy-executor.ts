@@ -1,10 +1,10 @@
 import { getLogger } from '@auto-claude/core';
 import { getDiscordNotifier } from '@auto-claude/notification';
-import { Strategy, StrategyType, StrategyStatus, getStrategyManager } from './strategy-manager';
-import { BaseExecutor, ExecutionResult } from './executors/base-executor';
-import { AffiliateExecutor } from './executors/affiliate-executor';
-import { FreelanceExecutor } from './executors/freelance-executor';
-import { DigitalProductExecutor } from './executors/digital-product-executor';
+import { Strategy, StrategyType, StrategyStatus, getStrategyManager } from './strategy-manager.js';
+import { BaseExecutor, ExecutionResult } from './executors/base-executor.js';
+import { AffiliateExecutor } from './executors/affiliate-executor.js';
+import { FreelanceExecutor } from './executors/freelance-executor.js';
+import { DigitalProductExecutor } from './executors/digital-product-executor.js';
 
 const logger = getLogger('strategy-executor');
 

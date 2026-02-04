@@ -398,21 +398,19 @@ export class RecoveryManager {
       action: action.type,
     });
 
-    await this.discord.sendWarning({
-      title: `戦略エラーのエスカレーション: ${strategy.name}`,
-      description: [
+    await this.discord.sendWarning(
+      `戦略エラーのエスカレーション: ${strategy.name}`,
+      [
         `**エラー種別:** ${classifiedError.category}`,
         `**メッセージ:** ${classifiedError.message}`,
         `**推奨アクション:** ${classifiedError.suggestedAction}`,
         '',
         `対応: ${action.description}`,
-      ].join('\n'),
-      details: {
-        strategyId: strategy.id,
-        strategyType: strategy.type,
-        timestamp: new Date().toISOString(),
-      },
-    });
+        '',
+        `戦略ID: ${strategy.id}`,
+        `戦略タイプ: ${strategy.type}`,
+      ].join('\n')
+    );
 
     // 承認が必要なアクションの場合
     if (action.requiredApproval) {
@@ -430,20 +428,19 @@ export class RecoveryManager {
     classifiedError: ReturnType<typeof classifyError>,
     state: RecoveryState
   ): Promise<void> {
-    await this.discord.sendError({
-      title: `戦略実行中断: ${strategy.name}`,
-      description: [
+    await this.discord.sendError(
+      `戦略実行中断: ${strategy.name}`,
+      [
         `**理由:** ${classifiedError.message}`,
         `**試行回数:** ${state.failureCount}`,
         `**エラー種別:** ${classifiedError.category}`,
         '',
         '最大リトライ回数に達したため、処理を中断しました。',
-      ].join('\n'),
-      details: {
-        strategyId: strategy.id,
-        recoveryAttempts: state.recoveryAttempts.length,
-      },
-    });
+        '',
+        `戦略ID: ${strategy.id}`,
+        `リカバリー試行回数: ${state.recoveryAttempts.length}`,
+      ].join('\n')
+    );
   }
 
   private sleep(ms: number): Promise<void> {

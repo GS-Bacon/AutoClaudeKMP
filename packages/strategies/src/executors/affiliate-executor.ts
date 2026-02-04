@@ -1,12 +1,12 @@
 import { RiskLevel, getLogger } from '@auto-claude/core';
 import { getBrowserManager } from '@auto-claude/browser';
-import { Strategy, StrategyType } from '../strategy-manager';
+import { Strategy, StrategyType } from '../strategy-manager.js';
 import {
   BaseExecutor,
   ExecutionPlan,
   ExecutionStep,
   StepResult,
-} from './base-executor';
+} from './base-executor.js';
 import { execSync } from 'child_process';
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';

@@ -501,8 +501,8 @@ export class StrategyValidator {
     // 基本メトリクスの検証
     expectedVsActual.push({
       metric: 'success',
-      expected: true,
-      actual: result.success,
+      expected: 'true',
+      actual: result.success ? 'true' : 'false',
       withinTolerance: result.success === true,
     });
 
