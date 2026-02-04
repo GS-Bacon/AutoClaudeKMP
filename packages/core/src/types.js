@@ -21,6 +21,16 @@ export var SystemState;
     SystemState["SAFE_MODE"] = "safe_mode";
     SystemState["STOPPED"] = "stopped";
 })(SystemState || (SystemState = {}));
+export var WorkPhase;
+(function (WorkPhase) {
+    WorkPhase["IDLE"] = "idle";
+    WorkPhase["PLANNING"] = "planning";
+    WorkPhase["IMPLEMENTING"] = "implementing";
+    WorkPhase["REVIEWING"] = "reviewing";
+    WorkPhase["ANALYZING"] = "analyzing";
+    WorkPhase["MAINTAINING"] = "maintaining";
+    WorkPhase["LEARNING"] = "learning";
+})(WorkPhase || (WorkPhase = {}));
 export var ToolStatus;
 (function (ToolStatus) {
     ToolStatus["HEALTHY"] = "healthy";
@@ -52,4 +62,15 @@ export const ConfigSchema = z.object({
         auth: z.string().default('/home/bacon/AutoClaudeKMP/auth'),
     }),
 });
+// エラーハンドリング関連の型定義
+export var ErrorCategory;
+(function (ErrorCategory) {
+    ErrorCategory["TRANSIENT"] = "transient";
+    ErrorCategory["PERMANENT"] = "permanent";
+    ErrorCategory["CONFIGURATION"] = "configuration";
+    ErrorCategory["RESOURCE"] = "resource";
+    ErrorCategory["EXTERNAL"] = "external";
+    ErrorCategory["VALIDATION"] = "validation";
+    ErrorCategory["UNKNOWN"] = "unknown";
+})(ErrorCategory || (ErrorCategory = {}));
 //# sourceMappingURL=types.js.map

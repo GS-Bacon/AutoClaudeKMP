@@ -244,6 +244,79 @@ ${problems
 `;
   }
 
+  async seekImprovementOpportunities(): Promise<void> {
+    logger.info('Seeking improvement opportunities');
+
+    // 最近の問題パターンを確認
+    const patterns = await this.rcAnalyzer.detectRecurringPatterns();
+    const criticalPatterns = patterns.filter(
+      (p) => p.occurrences >= 3 || p.severity >= 3
+    );
+
+    // 検証待ちの改善をチェック
+    const implementedImprovements = this.processImprover.getImplementedImprovements();
+    const pendingImprovements = this.processImprover.getPendingImprovements();
+
+    // 改善機会があるか判定
+    const hasOpportunities =
+      criticalPatterns.length > 0 ||
+      implementedImprovements.length > 0 ||
+      pendingImprovements.length > 5;
+
+    if (!hasOpportunities) {
+      logger.info('No immediate improvement opportunities found');
+      return;
+    }
+
+    // 検証可能な改善があれば検証
+    let verifiedCount = 0;
+    for (const improvement of implementedImprovements) {
+      const score = await this.processImprover.verifyImprovement(improvement.id);
+      if (score >= 0) {
+        verifiedCount++;
+      }
+    }
+
+    // 通知内容を構築
+    const notifications: string[] = [];
+
+    if (criticalPatterns.length > 0) {
+      notifications.push(
+        `繰り返し問題パターン: ${criticalPatterns.length}件（要対応）`
+      );
+    }
+
+    if (verifiedCount > 0) {
+      notifications.push(`改善検証完了: ${verifiedCount}件`);
+    }
+
+    if (pendingImprovements.length > 5) {
+      notifications.push(
+        `保留中の改善: ${pendingImprovements.length}件（実装検討推奨）`
+      );
+    }
+
+    // Discordに通知
+    if (notifications.length > 0) {
+      await this.discord.send({
+        type: 'info',
+        title: '改善機会を検出',
+        description: notifications.join('\n'),
+        fields: criticalPatterns.slice(0, 3).map((p) => ({
+          name: p.category,
+          value: `${p.occurrences}回発生, 重要度: ${p.severity.toFixed(1)}`,
+          inline: true,
+        })),
+      });
+    }
+
+    logger.info('Improvement opportunity check completed', {
+      criticalPatterns: criticalPatterns.length,
+      verified: verifiedCount,
+      pending: pendingImprovements.length,
+    });
+  }
+
   async getStats(): Promise<{
     totalProblems: number;
     totalRootCauses: number;

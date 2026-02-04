@@ -5,6 +5,7 @@
     "warning": false,
     "error": true,
     "critical": true,
-    "audit": false
+    "audit": false,
+    "suggestionResponse": false
   }
 }

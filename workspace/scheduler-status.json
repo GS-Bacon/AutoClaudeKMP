@@ -1,0 +1,104 @@
+{
+  "timestamp": "2026-02-04T10:35:50.521Z",
+  "tasks": [
+    {
+      "id": "health_check",
+      "name": "ヘルスチェック",
+      "enabled": true,
+      "lastRun": "2026-02-04T10:30:49.392Z",
+      "nextRun": "2026-02-04T10:35:49.392Z",
+      "intervalMs": 300000,
+      "cronExpression": null
+    },
+    {
+      "id": "suggestion_check",
+      "name": "提案チェック",
+      "enabled": true,
+      "lastRun": "2026-02-04T10:35:43.125Z",
+      "nextRun": "2026-02-04T10:40:43.125Z",
+      "intervalMs": 300000,
+      "cronExpression": null
+    },
+    {
+      "id": "heartbeat",
+      "name": "ハートビート通知",
+      "enabled": true,
+      "lastRun": "2026-02-04T10:20:41.611Z",
+      "nextRun": "2026-02-04T10:50:41.611Z",
+      "intervalMs": 1800000,
+      "cronExpression": null
+    },
+    {
+      "id": "daily_backup",
+      "name": "日次バックアップ",
+      "enabled": true,
+      "lastRun": null,
+      "nextRun": "2026-02-05T03:00:00.000Z",
+      "intervalMs": null,
+      "cronExpression": "0 3 * * *"
+    },
+    {
+      "id": "daily_analysis",
+      "name": "日次分析",
+      "enabled": true,
+      "lastRun": null,
+      "nextRun": "2026-02-05T06:00:00.000Z",
+      "intervalMs": null,
+      "cronExpression": "0 6 * * *"
+    },
+    {
+      "id": "weekly_report",
+      "name": "週報生成",
+      "enabled": true,
+      "lastRun": null,
+      "nextRun": "2026-02-05T06:00:00.000Z",
+      "intervalMs": null,
+      "cronExpression": "0 6 * * 1"
+    },
+    {
+      "id": "strategy_execution",
+      "name": "戦略実行",
+      "enabled": true,
+      "lastRun": "2026-02-04T10:20:40.621Z",
+      "nextRun": "2026-02-04T10:50:40.621Z",
+      "intervalMs": 1800000,
+      "cronExpression": null
+    },
+    {
+      "id": "improvement_seek",
+      "name": "改善機会探索",
+      "enabled": true,
+      "lastRun": null,
+      "nextRun": "2026-02-04T10:50:39.979Z",
+      "intervalMs": 3600000,
+      "cronExpression": null
+    },
+    {
+      "id": "approval_cleanup",
+      "name": "承認リクエストクリーンアップ",
+      "enabled": true,
+      "lastRun": null,
+      "nextRun": "2026-02-04T10:50:39.979Z",
+      "intervalMs": 3600000,
+      "cronExpression": null
+    },
+    {
+      "id": "resource_monitor",
+      "name": "リソース監視",
+      "enabled": true,
+      "lastRun": "2026-02-04T10:35:41.666Z",
+      "nextRun": "2026-02-04T10:40:41.666Z",
+      "intervalMs": 300000,
+      "cronExpression": null
+    },
+    {
+      "id": "loss_check",
+      "name": "損失チェック",
+      "enabled": true,
+      "lastRun": "2026-02-04T10:30:40.722Z",
+      "nextRun": "2026-02-04T10:40:40.722Z",
+      "intervalMs": 600000,
+      "cronExpression": null
+    }
+  ]
+}

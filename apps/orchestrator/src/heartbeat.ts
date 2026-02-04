@@ -1,5 +1,5 @@
-import { SystemState, getLogger } from '@auto-claude/core';
-import type { SystemHealth } from '@auto-claude/core';
+import { SystemState, WorkPhase, getLogger } from '@auto-claude/core';
+import type { SystemHealth, CurrentPhase } from '@auto-claude/core';
 import { getSystemRiskMonitor } from '@auto-claude/safety';
 import { getToolRiskMonitor } from '@auto-claude/safety';
 import { getResourceManager } from '@auto-claude/safety';
@@ -24,10 +24,61 @@ export class HeartbeatManager {
   private discord = getDiscordNotifier();
   private memory = getMemoryManager();
   private consecutiveFailures: number = 0;
+  private currentPhase: CurrentPhase | null = null;
 
   constructor() {
     this.startTime = new Date();
+    // 初期フェーズを設定
+    this.setPhase(WorkPhase.IDLE, '次のタスクを待機中');
     logger.info('HeartbeatManager initialized');
+  }
+
+  setPhase(
+    phase: WorkPhase,
+    description: string,
+    taskId?: string,
+    options?: { currentGoal?: string; nextSteps?: string[] }
+  ): void {
+    this.currentPhase = {
+      phase,
+      description,
+      startedAt: new Date(),
+      taskId,
+      progress: undefined,
+      currentGoal: options?.currentGoal,
+      nextSteps: options?.nextSteps,
+    };
+    logger.debug('Phase updated', { phase, description, taskId, options });
+
+    // フェーズ変更時に即座にファイルを更新
+    this.savePhaseStatus().catch((err) => {
+      logger.error('Failed to save phase status', { error: err });
+    });
+  }
+
+  private async savePhaseStatus(): Promise<void> {
+    const statusFile = 'SYSTEM_STATUS.json';
+    await this.memory.writeJson(statusFile, {
+      timestamp: new Date().toISOString(),
+      health: {
+        state: SystemState.HEALTHY,
+        uptime: this.getUptimeSeconds(),
+        lastHeartbeat: this.lastHeartbeat ?? new Date(),
+        currentPhase: this.currentPhase ?? undefined,
+      },
+      uptime: this.getUptimeSeconds(),
+    });
+  }
+
+  updateProgress(progress: number): void {
+    if (this.currentPhase) {
+      this.currentPhase.progress = Math.max(0, Math.min(100, progress));
+      logger.debug('Progress updated', { progress: this.currentPhase.progress });
+    }
+  }
+
+  getCurrentPhase(): CurrentPhase | null {
+    return this.currentPhase;
   }
 
   async beat(): Promise<HeartbeatStatus> {
@@ -51,6 +102,7 @@ export class HeartbeatManager {
         tools: toolHealth,
         errors: systemStatus.issues,
         warnings: systemStatus.recommendations,
+        currentPhase: this.currentPhase ?? undefined,
       };
 
       this.lastHeartbeat = new Date();

@@ -1,0 +1,38 @@
+[
+  {
+    "id": "notif_1770197646082_z0qxqwp",
+    "type": "success",
+    "title": "システム起動",
+    "description": "AutoClaudeKMP が起動しました",
+    "timestamp": "2026-02-04T09:34:06.082Z",
+    "sent": false,
+    "reason": "通知タイプ「success」は無効化されています"
+  },
+  {
+    "id": "notif_1770197569521_x830oqa",
+    "type": "success",
+    "title": "システム起動",
+    "description": "AutoClaudeKMP が起動しました",
+    "timestamp": "2026-02-04T09:32:49.521Z",
+    "sent": false,
+    "reason": "通知タイプ「success」は無効化されています"
+  },
+  {
+    "id": "notif_1770197566242_9v5j9mc",
+    "type": "info",
+    "title": "システム停止",
+    "description": "AutoClaudeKMP が停止しました",
+    "timestamp": "2026-02-04T09:32:46.242Z",
+    "sent": false,
+    "reason": "通知タイプ「info」は無効化されています"
+  },
+  {
+    "id": "notif_1770197413878_xljaswr",
+    "type": "success",
+    "title": "システム起動",
+    "description": "AutoClaudeKMP が起動しました",
+    "timestamp": "2026-02-04T09:30:13.878Z",
+    "sent": false,
+    "reason": "通知タイプ「success」は無効化されています"
+  }
+]

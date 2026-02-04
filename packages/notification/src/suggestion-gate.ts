@@ -132,6 +132,86 @@ export class SuggestionGate {
     return this.readPending().filter((s) => s.status === 'pending');
   }
 
+  getDeferred(): Suggestion[] {
+    const pending = this.readPending().filter((s) => s.status === 'deferred');
+    const processed = this.readProcessed().filter((s) => s.status === 'deferred');
+    return [...pending, ...processed];
+  }
+
+  getAccepted(): Suggestion[] {
+    const pending = this.readPending().filter((s) => s.status === 'accepted');
+    const processed = this.readProcessed().filter((s) => s.status === 'accepted');
+    return [...pending, ...processed];
+  }
+
+  incrementReviewCount(id: string): number {
+    const pending = this.readPending();
+    const index = pending.findIndex((s) => s.id === id);
+
+    if (index !== -1) {
+      pending[index].reviewCount = (pending[index].reviewCount ?? 0) + 1;
+      this.writePending(pending);
+      return pending[index].reviewCount;
+    }
+
+    const processed = this.readProcessed();
+    const procIndex = processed.findIndex((s) => s.id === id);
+
+    if (procIndex !== -1) {
+      processed[procIndex].reviewCount = (processed[procIndex].reviewCount ?? 0) + 1;
+      this.writeProcessed(processed);
+      return processed[procIndex].reviewCount;
+    }
+
+    return 0;
+  }
+
+  updateSuggestion(
+    id: string,
+    updates: {
+      status?: SuggestionStatus;
+      systemResponse?: Omit<SuggestionSystemResponse, 'respondedAt'>;
+    }
+  ): boolean {
+    const pending = this.readPending();
+    const index = pending.findIndex((s) => s.id === id);
+
+    if (index !== -1) {
+      if (updates.status) {
+        pending[index].status = updates.status;
+      }
+      if (updates.systemResponse) {
+        pending[index].systemResponse = {
+          ...updates.systemResponse,
+          respondedAt: new Date(),
+        };
+      }
+      this.writePending(pending);
+      logger.info('Suggestion updated', { id, updates });
+      return true;
+    }
+
+    const processed = this.readProcessed();
+    const procIndex = processed.findIndex((s) => s.id === id);
+
+    if (procIndex !== -1) {
+      if (updates.status) {
+        processed[procIndex].status = updates.status;
+      }
+      if (updates.systemResponse) {
+        processed[procIndex].systemResponse = {
+          ...updates.systemResponse,
+          respondedAt: new Date(),
+        };
+      }
+      this.writeProcessed(processed);
+      logger.info('Suggestion updated', { id, updates });
+      return true;
+    }
+
+    return false;
+  }
+
   getAll(): Suggestion[] {
     const pending = this.readPending();
     const processed = this.readProcessed();
