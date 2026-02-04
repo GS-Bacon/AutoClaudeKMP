@@ -1,6 +1,6 @@
 /**
  * 自動修正エンジン
- * Claude CLI を使用してエラーを自動修正する
+ * GLM-4.7で修正し、Claude Codeで検証する2段階システム
  */
 
 import { spawn } from 'node:child_process';
@@ -14,6 +14,7 @@ import type {
 import { getRepairQueue } from './repair-queue.js';
 import { getRepairCircuitBreaker } from './circuit-breaker.js';
 import { getErrorAggregator } from './aggregator.js';
+import { getOpencodeCLI } from '@auto-claude/ai-router';
 
 const DEFAULT_CONFIG: AutoRepairConfig = {
   enabled: true,
@@ -22,6 +23,8 @@ const DEFAULT_CONFIG: AutoRepairConfig = {
   claudeCliPath: 'claude',
   workingDirectory: process.cwd(),
   timeoutMs: 10 * 60 * 1000, // 10分
+  useGlm: true,              // GLM-4.7を使用
+  verifyWithClaude: true,    // Claude Codeで検証
 };
 
 /**
@@ -66,7 +69,7 @@ export class AutoRepairer {
   }
 
   /**
-   * Claude CLI を使用して修正を実行
+   * Claude CLI を使用して修正または検証を実行
    */
   private async executeClaudeCli(prompt: string): Promise<{ success: boolean; output: string; error?: string }> {
     return new Promise((resolve) => {
@@ -76,7 +79,6 @@ export class AutoRepairer {
         prompt,
       ];
 
-      const startTime = Date.now();
       let stdout = '';
       let stderr = '';
       let timedOut = false;
@@ -143,12 +145,99 @@ export class AutoRepairer {
   }
 
   /**
+   * Opencode CLI (GLM-4.7) を使用して修正を実行
+   */
+  private async executeOpencode(prompt: string): Promise<{ success: boolean; output: string; error?: string }> {
+    const opencodeCli = getOpencodeCLI();
+    const result = await opencodeCli.executeTask({
+      prompt,
+      workingDir: this.config.workingDirectory,
+      timeout: this.config.timeoutMs,
+    });
+
+    return {
+      success: result.success,
+      output: result.output,
+      error: result.error,
+    };
+  }
+
+  /**
+   * Claude Codeで修正結果を検証
+   */
+  private async verifyWithClaude(originalPrompt: string, repairOutput: string): Promise<{ valid: boolean; output: string; error?: string }> {
+    const verifyPrompt = `以下の修正が正しく実行されたか検証してください。
+問題がなければ「検証OK」、問題があれば「問題あり: [理由]」と回答してください。
+
+## 元の修正指示
+${originalPrompt}
+
+## 修正結果
+${repairOutput.slice(0, 5000)}`;
+
+    const result = await this.executeClaudeCli(verifyPrompt);
+
+    if (!result.success) {
+      return { valid: false, output: result.output, error: result.error };
+    }
+
+    const hasIssue = result.output.includes('問題あり');
+    return {
+      valid: !hasIssue,
+      output: result.output,
+      error: hasIssue ? result.output : undefined,
+    };
+  }
+
+  /**
    * 単一のタスクを処理
+   * useGlm: true の場合、GLM-4.7で修正 → Claude Codeで検証の2段階処理
+   * useGlm: false の場合、従来通りClaude CLIのみで修正
    */
   async processTask(task: RepairTask): Promise<RepairAttemptResult> {
     const startTime = Date.now();
 
-    const result = await this.executeClaudeCli(task.prompt);
+    let result: { success: boolean; output: string; error?: string };
+
+    if (this.config.useGlm) {
+      // 1. GLM-4.7で修正を実行
+      console.log(`Using GLM-4.7 (opencode) for repair task: ${task.id}`);
+      result = await this.executeOpencode(task.prompt);
+
+      if (!result.success) {
+        return {
+          timestamp: new Date().toISOString(),
+          success: false,
+          prompt: task.prompt,
+          output: result.output,
+          error: `GLM repair failed: ${result.error}`,
+          durationMs: Date.now() - startTime,
+        };
+      }
+
+      // 2. Claude Codeで検証（設定で有効な場合）
+      if (this.config.verifyWithClaude) {
+        console.log(`Verifying repair with Claude Code for task: ${task.id}`);
+        const verifyResult = await this.verifyWithClaude(task.prompt, result.output);
+
+        if (!verifyResult.valid) {
+          return {
+            timestamp: new Date().toISOString(),
+            success: false,
+            prompt: task.prompt,
+            output: `[GLM Output]\n${result.output}\n\n[Verification]\n${verifyResult.output}`,
+            error: `Verification failed: ${verifyResult.error}`,
+            durationMs: Date.now() - startTime,
+          };
+        }
+
+        // 検証結果を出力に追加
+        result.output = `[GLM Output]\n${result.output}\n\n[Verification: OK]\n${verifyResult.output}`;
+      }
+    } else {
+      // 従来通りClaude CLIのみで修正
+      result = await this.executeClaudeCli(task.prompt);
+    }
 
     const attemptResult: RepairAttemptResult = {
       timestamp: new Date().toISOString(),

@@ -162,6 +162,9 @@ importers:
 
   packages/error-aggregator:
     dependencies:
+      '@auto-claude/ai-router':
+        specifier: workspace:*
+        version: link:../ai-router
       '@auto-claude/core':
         specifier: workspace:*
         version: link:../core

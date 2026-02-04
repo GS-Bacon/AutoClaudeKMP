@@ -166,6 +166,10 @@ export interface AutoRepairConfig {
   claudeCliPath: string;
   workingDirectory: string;
   timeoutMs: number;
+  /** GLM-4.7を使用するか（trueでopencode CLIを使用） */
+  useGlm: boolean;
+  /** Claude Codeで検証するか */
+  verifyWithClaude: boolean;
 }
 
 /**
