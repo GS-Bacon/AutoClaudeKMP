@@ -275,6 +275,19 @@ export class StrategyManager {
       .slice(0, limit);
   }
 
+  async executeActiveStrategies(): Promise<void> {
+    // StrategyExecutorに委譲（循環依存を避けるためdynamic import）
+    const { getStrategyExecutor } = await import('./strategy-executor');
+    const executor = getStrategyExecutor();
+
+    const results = await executor.executeAllActive();
+
+    logger.info('Strategy execution cycle completed', {
+      executedCount: results.size,
+      successCount: Array.from(results.values()).filter((r) => r.success).length,
+    });
+  }
+
   async evaluateStrategies(): Promise<void> {
     const active = this.getActiveStrategies();
 

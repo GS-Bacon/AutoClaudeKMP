@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@auto-claude/core": "workspace:*",
+    "@auto-claude/notification": "workspace:*",
     "playwright": "^1.40.0"
   }
 }

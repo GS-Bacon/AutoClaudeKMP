@@ -6,8 +6,8 @@ import { getDiscordNotifier, getApprovalGate, getSuggestionGate } from '@auto-cl
 import { getMemoryManager } from '@auto-claude/memory';
 import { getLedger } from '@auto-claude/ledger';
 import { getTaskQueue, getClaudeCLI } from '@auto-claude/ai-router';
-import { getLearningCycleManager, getReportGenerator } from '@auto-claude/self-improve';
-import { getStrategyManager } from '@auto-claude/strategies';
+import { getLearningCycleManager, getReportGenerator, getAutoImprover } from '@auto-claude/self-improve';
+import { getStrategyManager, getStrategyActivator, getStrategyExecutor } from '@auto-claude/strategies';
 import { getGitHubManager } from '@auto-claude/github';
 import { Scheduler } from './scheduler.js';
 import { HeartbeatManager } from './heartbeat.js';
@@ -45,6 +45,9 @@ export class Orchestrator {
   private taskQueue = getTaskQueue();
   private learningCycle = getLearningCycleManager();
   private strategyManager = getStrategyManager();
+  private strategyActivator = getStrategyActivator();
+  private strategyExecutor = getStrategyExecutor();
+  private autoImprover = getAutoImprover();
   private githubManager = getGitHubManager();
   private suggestionGate = getSuggestionGate();
   private reportGenerator = getReportGenerator();
@@ -324,6 +327,78 @@ export class Orchestrator {
             description: '全ての支出がブロックされています',
           });
         }
+      },
+    });
+
+    // 戦略自動アクティベーション（1時間ごと）
+    this.scheduler.registerTask({
+      id: 'strategy_activation',
+      name: '戦略自動アクティベーション',
+      intervalMs: 60 * 60 * 1000,
+      enabled: true,
+      handler: async () => {
+        this.heartbeat.setPhase(WorkPhase.PLANNING, 'DRAFT戦略を評価中', 'strategy_activation', {
+          currentGoal: '戦略自動有効化',
+          nextSteps: ['戦略評価', '低リスク戦略の自動アクティベート'],
+        });
+        const result = await this.strategyActivator.evaluateAndActivateDrafts();
+        logger.info('Strategy activation completed', result);
+        this.heartbeat.setPhase(WorkPhase.IDLE, '次のタスクを待機中', undefined, {
+          nextSteps: ['次の定期タスクまで待機'],
+        });
+      },
+    });
+
+    // 自動改善処理（1時間ごと）
+    this.scheduler.registerTask({
+      id: 'auto_improve',
+      name: '自動改善処理',
+      intervalMs: 60 * 60 * 1000,
+      enabled: true,
+      handler: async () => {
+        this.heartbeat.setPhase(WorkPhase.LEARNING, '保留中の改善を自動処理中', 'auto_improve', {
+          currentGoal: '自動改善',
+          nextSteps: ['リスク評価', '低リスク改善の自動実装'],
+        });
+        const result = await this.autoImprover.processImprovements();
+        logger.info('Auto improvement completed', result);
+
+        // ロールバックチェック
+        const rolledBack = await this.autoImprover.checkForRollback();
+        if (rolledBack.length > 0) {
+          logger.warn('Improvements rolled back due to issues', { count: rolledBack.length });
+        }
+
+        this.heartbeat.setPhase(WorkPhase.IDLE, '次のタスクを待機中', undefined, {
+          nextSteps: ['次の定期タスクまで待機'],
+        });
+      },
+    });
+
+    // 改善検証（毎日7時）
+    this.scheduler.registerTask({
+      id: 'improvement_verify',
+      name: '改善検証',
+      cronExpression: '0 7 * * *',
+      enabled: true,
+      handler: async () => {
+        this.heartbeat.setPhase(WorkPhase.REVIEWING, '実装済み改善の効果を検証中', 'improvement_verify', {
+          currentGoal: '改善効果検証',
+          nextSteps: ['7日以上経過した改善の検証', '結果レポート'],
+        });
+        const result = await this.autoImprover.verifyImplementedImprovements();
+        logger.info('Improvement verification completed', result);
+
+        if (result.verified > 0 || result.failed > 0) {
+          await this.discord.sendInfo(
+            '改善検証完了',
+            `検証済み: ${result.verified}件, 失敗: ${result.failed}件, 待機中: ${result.pending}件`
+          );
+        }
+
+        this.heartbeat.setPhase(WorkPhase.IDLE, '次のタスクを待機中', undefined, {
+          nextSteps: ['次の定期タスクまで待機'],
+        });
       },
     });
   }

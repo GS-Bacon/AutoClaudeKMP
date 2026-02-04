@@ -129,6 +129,9 @@ importers:
       '@auto-claude/core':
         specifier: workspace:*
         version: link:../core
+      '@auto-claude/notification':
+        specifier: workspace:*
+        version: link:../notification
       playwright:
         specifier: ^1.40.0
         version: 1.58.1
@@ -213,6 +216,9 @@ importers:
 
   packages/strategies:
     dependencies:
+      '@auto-claude/browser':
+        specifier: workspace:*
+        version: link:../browser
       '@auto-claude/compliance':
         specifier: workspace:*
         version: link:../compliance
