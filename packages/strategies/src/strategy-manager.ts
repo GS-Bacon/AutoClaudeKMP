@@ -277,7 +277,7 @@ export class StrategyManager {
 
   async executeActiveStrategies(): Promise<void> {
     // StrategyExecutorに委譲（循環依存を避けるためdynamic import）
-    const { getStrategyExecutor } = await import('./strategy-executor');
+    const { getStrategyExecutor } = await import('./strategy-executor.js');
     const executor = getStrategyExecutor();
 
     const results = await executor.executeAllActive();
