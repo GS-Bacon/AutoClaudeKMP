@@ -11,3 +11,4 @@ export * from './research-based-improver.js';
 export * from './pattern-extractor.js';
 export * from './skill-generator.js';
 export * from './improvement-validator.js';
+export * from './doc-sync-checker.js';

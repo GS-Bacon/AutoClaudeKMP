@@ -1,0 +1,37 @@
+{
+  "lastChecked": null,
+  "lastUpdated": null,
+  "syncStatus": "initialized",
+  "trackedFiles": {
+    "apps/orchestrator/src/orchestrator.ts": {
+      "lastModified": null,
+      "linkedDocs": ["docs/WORKFLOWS.md"]
+    },
+    "apps/orchestrator/src/scheduler.ts": {
+      "lastModified": null,
+      "linkedDocs": ["docs/WORKFLOWS.md"]
+    },
+    "apps/orchestrator/src/heartbeat.ts": {
+      "lastModified": null,
+      "linkedDocs": ["docs/WORKFLOWS.md"]
+    },
+    "packages/self-improve/src/learning-cycle.ts": {
+      "lastModified": null,
+      "linkedDocs": ["docs/WORKFLOWS.md"]
+    },
+    "packages/notification/src/suggestion-gate.ts": {
+      "lastModified": null,
+      "linkedDocs": ["docs/WORKFLOWS.md"]
+    },
+    "packages/strategies/src/strategy-manager.ts": {
+      "lastModified": null,
+      "linkedDocs": ["docs/WORKFLOWS.md"]
+    }
+  },
+  "documentMetadata": {
+    "docs/WORKFLOWS.md": {
+      "lastModified": null,
+      "version": "1.0.0"
+    }
+  }
+}

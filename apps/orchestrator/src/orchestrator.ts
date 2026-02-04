@@ -13,6 +13,7 @@ import {
   getSystemDiagnostician,
   getRetrospectiveAnalyzer,
   getPatternExtractor,
+  getDocSyncChecker,
 } from '@auto-claude/self-improve';
 import { getStrategyManager, getStrategyActivator, getStrategyExecutor } from '@auto-claude/strategies';
 import { getGitHubManager } from '@auto-claude/github';
@@ -490,6 +491,43 @@ export class Orchestrator {
           } catch (error) {
             logger.warn('Failed to convert pattern', { patternId: pattern.id, error });
           }
+        }
+
+        this.heartbeat.setPhase(WorkPhase.IDLE, '次のタスクを待機中', undefined, {
+          nextSteps: ['次の定期タスクまで待機'],
+        });
+      },
+    });
+
+    // ドキュメント同期チェック（毎日8時）
+    this.scheduler.registerTask({
+      id: 'doc_sync_check',
+      name: 'ドキュメント同期チェック',
+      cronExpression: '0 8 * * *',
+      enabled: true,
+      handler: async () => {
+        this.heartbeat.setPhase(WorkPhase.REVIEWING, 'ドキュメント同期状態を確認中', 'doc_sync_check', {
+          currentGoal: 'ドキュメント同期',
+          nextSteps: ['ソースファイルとドキュメントの更新日時を比較', '必要に応じて更新提案を生成'],
+        });
+
+        const docSyncChecker = getDocSyncChecker();
+        const suggestion = await docSyncChecker.generateUpdateSuggestion();
+
+        if (suggestion) {
+          // 提案システムに登録
+          this.suggestionGate.create({
+            title: suggestion.title,
+            content: suggestion.content,
+            category: suggestion.category,
+            priority: suggestion.priority,
+          });
+
+          logger.info('Document sync suggestion created', {
+            outdatedCount: suggestion.outdatedFiles.length,
+          });
+        } else {
+          logger.info('All documents are in sync');
         }
 
         this.heartbeat.setPhase(WorkPhase.IDLE, '次のタスクを待機中', undefined, {
