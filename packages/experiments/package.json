@@ -1,0 +1,19 @@
+{
+  "name": "@auto-claude/experiments",
+  "version": "1.0.0",
+  "description": "Experiment and project management for AutoClaudeKMP",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@auto-claude/core": "workspace:*",
+    "@auto-claude/notification": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}

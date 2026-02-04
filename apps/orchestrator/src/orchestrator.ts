@@ -6,7 +6,14 @@ import { getDiscordNotifier, getApprovalGate, getSuggestionGate } from '@auto-cl
 import { getMemoryManager } from '@auto-claude/memory';
 import { getLedger } from '@auto-claude/ledger';
 import { getTaskQueue, getClaudeCLI } from '@auto-claude/ai-router';
-import { getLearningCycleManager, getReportGenerator, getAutoImprover } from '@auto-claude/self-improve';
+import {
+  getLearningCycleManager,
+  getReportGenerator,
+  getAutoImprover,
+  getSystemDiagnostician,
+  getRetrospectiveAnalyzer,
+  getPatternExtractor,
+} from '@auto-claude/self-improve';
 import { getStrategyManager, getStrategyActivator, getStrategyExecutor } from '@auto-claude/strategies';
 import { getGitHubManager } from '@auto-claude/github';
 import { Scheduler } from './scheduler.js';
@@ -394,6 +401,95 @@ export class Orchestrator {
             '改善検証完了',
             `検証済み: ${result.verified}件, 失敗: ${result.failed}件, 待機中: ${result.pending}件`
           );
+        }
+
+        this.heartbeat.setPhase(WorkPhase.IDLE, '次のタスクを待機中', undefined, {
+          nextSteps: ['次の定期タスクまで待機'],
+        });
+      },
+    });
+
+    // システム診断（毎日5時）
+    this.scheduler.registerTask({
+      id: 'system_diagnosis',
+      name: 'システム診断',
+      cronExpression: '0 5 * * *',
+      enabled: true,
+      handler: async () => {
+        this.heartbeat.setPhase(WorkPhase.ANALYZING, 'システム全体を診断中', 'system_diagnosis', {
+          currentGoal: 'システム健康診断',
+          nextSteps: ['コンポーネント診断', 'パフォーマンス分析', '改善提案'],
+        });
+
+        const diagnostician = getSystemDiagnostician();
+        const report = await diagnostician.runFullDiagnosis();
+
+        logger.info('System diagnosis completed', {
+          overallStatus: report.overallStatus,
+          issueCount: report.issues.length,
+          recommendationCount: report.recommendations.length,
+        });
+
+        this.heartbeat.setPhase(WorkPhase.IDLE, '次のタスクを待機中', undefined, {
+          nextSteps: ['次の定期タスクまで待機'],
+        });
+      },
+    });
+
+    // 週次振り返り（毎週日曜21時）
+    this.scheduler.registerTask({
+      id: 'weekly_retrospective',
+      name: '週次振り返り',
+      cronExpression: '0 21 * * 0',
+      enabled: true,
+      handler: async () => {
+        this.heartbeat.setPhase(WorkPhase.LEARNING, '週次振り返りを実行中', 'weekly_retrospective', {
+          currentGoal: '週次振り返り',
+          nextSteps: ['成功事例分析', '改善点特定', 'アクションアイテム生成'],
+        });
+
+        const retrospective = getRetrospectiveAnalyzer();
+        const report = await retrospective.conductWeeklyRetrospective();
+
+        logger.info('Weekly retrospective completed', {
+          wellCount: report.whatWentWell.length,
+          wrongCount: report.whatWentWrong.length,
+          actionItemCount: report.actionItems.length,
+        });
+
+        this.heartbeat.setPhase(WorkPhase.IDLE, '次のタスクを待機中', undefined, {
+          nextSteps: ['次の定期タスクまで待機'],
+        });
+      },
+    });
+
+    // 成功パターン抽出（毎週土曜9時）
+    this.scheduler.registerTask({
+      id: 'pattern_extraction',
+      name: '成功パターン抽出',
+      cronExpression: '0 9 * * 6',
+      enabled: true,
+      handler: async () => {
+        this.heartbeat.setPhase(WorkPhase.LEARNING, '成功パターンを抽出中', 'pattern_extraction', {
+          currentGoal: 'パターン抽出・再利用化',
+          nextSteps: ['パターン検出', '再利用形式への変換'],
+        });
+
+        const extractor = getPatternExtractor();
+        const patterns = await extractor.extractPatterns();
+
+        logger.info('Pattern extraction completed', {
+          newPatternCount: patterns.length,
+        });
+
+        // 未変換パターンを自動変換
+        const unconverted = extractor.getUnconvertedPatterns();
+        for (const pattern of unconverted.slice(0, 3)) { // 最大3件
+          try {
+            await extractor.convertPattern(pattern.id);
+          } catch (error) {
+            logger.warn('Failed to convert pattern', { patternId: pattern.id, error });
+          }
         }
 
         this.heartbeat.setPhase(WorkPhase.IDLE, '次のタスクを待機中', undefined, {
