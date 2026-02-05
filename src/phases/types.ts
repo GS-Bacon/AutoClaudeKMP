@@ -72,6 +72,11 @@ export interface CycleContext {
   };
   activeGoals?: Goal[];
   goalProgress?: GoalProgress[];
+
+  // Learning system fields
+  usedPatterns?: string[];  // パターンIDのリスト
+  patternMatches?: number;  // パターンマッチの数
+  aiCalls?: number;         // AI呼び出しの数
 }
 
 export interface Phase {

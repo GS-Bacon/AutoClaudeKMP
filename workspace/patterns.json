@@ -1,0 +1,197 @@
+{
+  "version": 1,
+  "patterns": [
+    {
+      "id": "console-log-removal",
+      "name": "console.log の削除",
+      "version": 1,
+      "conditions": [
+        {
+          "type": "regex",
+          "value": "console\\.(log|warn|error|debug)\\(",
+          "target": "content"
+        }
+      ],
+      "solution": {
+        "type": "template",
+        "content": "Remove console.log statements for production"
+      },
+      "stats": {
+        "usageCount": 0,
+        "successCount": 0,
+        "confidence": 0.9,
+        "lastUsed": "",
+        "phase": "initial"
+      },
+      "history": [
+        {
+          "version": 1,
+          "timestamp": "2026-02-05T00:00:00.000Z",
+          "changeReason": "Initial pattern"
+        }
+      ],
+      "createdAt": "2026-02-05T00:00:00.000Z"
+    },
+    {
+      "id": "unused-import",
+      "name": "未使用importの検出",
+      "version": 1,
+      "conditions": [
+        {
+          "type": "regex",
+          "value": "import\\s+\\{[^}]+\\}\\s+from\\s+['\"]",
+          "target": "content"
+        }
+      ],
+      "solution": {
+        "type": "ai-prompt",
+        "content": "Analyze imports and remove unused ones"
+      },
+      "stats": {
+        "usageCount": 0,
+        "successCount": 0,
+        "confidence": 0.85,
+        "lastUsed": "",
+        "phase": "initial"
+      },
+      "history": [
+        {
+          "version": 1,
+          "timestamp": "2026-02-05T00:00:00.000Z",
+          "changeReason": "Initial pattern"
+        }
+      ],
+      "createdAt": "2026-02-05T00:00:00.000Z"
+    },
+    {
+      "id": "any-type-usage",
+      "name": "any型の使用",
+      "version": 1,
+      "conditions": [
+        {
+          "type": "regex",
+          "value": ":\\s*any\\b",
+          "target": "content"
+        },
+        {
+          "type": "file-glob",
+          "value": "**/*.ts",
+          "target": "filename"
+        }
+      ],
+      "solution": {
+        "type": "ai-prompt",
+        "content": "Replace 'any' type with proper type annotation"
+      },
+      "stats": {
+        "usageCount": 0,
+        "successCount": 0,
+        "confidence": 0.8,
+        "lastUsed": "",
+        "phase": "initial"
+      },
+      "history": [
+        {
+          "version": 1,
+          "timestamp": "2026-02-05T00:00:00.000Z",
+          "changeReason": "Initial pattern"
+        }
+      ],
+      "createdAt": "2026-02-05T00:00:00.000Z"
+    },
+    {
+      "id": "empty-catch-block",
+      "name": "空のcatchブロック",
+      "version": 1,
+      "conditions": [
+        {
+          "type": "regex",
+          "value": "catch\\s*\\([^)]*\\)\\s*\\{\\s*\\}",
+          "target": "content"
+        }
+      ],
+      "solution": {
+        "type": "template",
+        "content": "Add error handling or logging to empty catch block"
+      },
+      "stats": {
+        "usageCount": 0,
+        "successCount": 0,
+        "confidence": 0.85,
+        "lastUsed": "",
+        "phase": "initial"
+      },
+      "history": [
+        {
+          "version": 1,
+          "timestamp": "2026-02-05T00:00:00.000Z",
+          "changeReason": "Initial pattern"
+        }
+      ],
+      "createdAt": "2026-02-05T00:00:00.000Z"
+    },
+    {
+      "id": "todo-fixme-marker",
+      "name": "TODO/FIXME マーカー",
+      "version": 1,
+      "conditions": [
+        {
+          "type": "regex",
+          "value": "//\\s*(TODO|FIXME|HACK):\\s*(.+)",
+          "target": "content"
+        }
+      ],
+      "solution": {
+        "type": "ai-prompt",
+        "content": "Analyze and resolve TODO/FIXME comment"
+      },
+      "stats": {
+        "usageCount": 0,
+        "successCount": 0,
+        "confidence": 0.75,
+        "lastUsed": "",
+        "phase": "initial"
+      },
+      "history": [
+        {
+          "version": 1,
+          "timestamp": "2026-02-05T00:00:00.000Z",
+          "changeReason": "Initial pattern"
+        }
+      ],
+      "createdAt": "2026-02-05T00:00:00.000Z"
+    },
+    {
+      "id": "magic-number",
+      "name": "マジックナンバー",
+      "version": 1,
+      "conditions": [
+        {
+          "type": "regex",
+          "value": "(?<!port|PORT|timeout|TIMEOUT|ms|delay|Delay)\\s*[=:]\\s*\\d{4,}\\b",
+          "target": "content"
+        }
+      ],
+      "solution": {
+        "type": "template",
+        "content": "Extract magic number to named constant"
+      },
+      "stats": {
+        "usageCount": 0,
+        "successCount": 0,
+        "confidence": 0.7,
+        "lastUsed": "",
+        "phase": "initial"
+      },
+      "history": [
+        {
+          "version": 1,
+          "timestamp": "2026-02-05T00:00:00.000Z",
+          "changeReason": "Initial pattern"
+        }
+      ],
+      "createdAt": "2026-02-05T00:00:00.000Z"
+    }
+  ],
+  "lastUpdated": "2026-02-05T00:00:00.000Z"
+}
