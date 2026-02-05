@@ -1,10 +1,10 @@
-# MoltBot
+# KairosAgent
 
 自己改善型AIシステム - 長期間動いて自律的に自分自身のコードを修正・改善し続けます。
 
 ## 概要
 
-MoltBotは以下の特徴を持つシステムです：
+KairosAgentは以下の特徴を持つシステムです：
 
 - **自己修正**: AIが自分自身のソースコードを改善
 - **フェイルセーフ**: 変更前にスナップショット、失敗時は自動ロールバック
@@ -15,7 +15,7 @@ MoltBotは以下の特徴を持つシステムです：
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    MoltBot Core                         │
+│                    KairosAgent Core                     │
 │  (自己改善エンジン - API提供)                            │
 │                                                         │
 │  ┌─────────┐  ┌───────────┐  ┌─────────┐              │
@@ -92,18 +92,18 @@ npm install
 npm run build
 npm link
 
-moltbot status          # システム状態
-moltbot health          # ヘルスチェック
-moltbot logs            # ログ表示
-moltbot history         # 変更履歴
-moltbot check           # チェック実行
-moltbot watch           # リアルタイム監視
+kairos status          # システム状態
+kairos health          # ヘルスチェック
+kairos logs            # ログ表示
+kairos history         # 変更履歴
+kairos check           # チェック実行
+kairos watch           # リアルタイム監視
 ```
 
 ## ディレクトリ構造
 
 ```
-MoltBot/
+KairosAgent/
 ├── src/
 │   ├── index.ts              # エントリーポイント
 │   ├── core/                 # コア機能

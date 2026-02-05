@@ -134,7 +134,7 @@ export class CodeVerifier {
         return { success: true };
       }
 
-      const message = `[MoltBot] Auto-repair: ${new Date().toISOString()}`;
+      const message = `[KairosAgent] Auto-repair: ${new Date().toISOString()}`;
       execSync(`git commit -m "${message}"`, {
         encoding: "utf-8",
         stdio: "pipe",

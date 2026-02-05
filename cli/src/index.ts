@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const API_BASE = process.env.MOLTBOT_API || "http://localhost:3100";
+const API_BASE = process.env.KAIROS_API || "http://localhost:3100";
 
 interface StatusResponse {
   state: string;
@@ -41,7 +41,7 @@ function formatDuration(seconds: number): string {
 async function status(): Promise<void> {
   const data = await fetchAPI<StatusResponse>("/status");
 
-  console.log("\n=== MoltBot Status ===");
+  console.log("\n=== KairosAgent Status ===");
   console.log(`State:   ${data.state}`);
   console.log(`Uptime:  ${formatDuration(data.uptime_seconds)}`);
   console.log("\n--- Last 7 days ---");
@@ -157,10 +157,10 @@ async function watch(): Promise<void> {
 
 function printHelp(): void {
   console.log(`
-MoltBot CLI
+KairosAgent CLI
 
 Usage:
-  moltbot <command> [options]
+  kairos <command> [options]
 
 Commands:
   status          Show system status
@@ -173,7 +173,7 @@ Commands:
   help            Show this help
 
 Environment:
-  MOLTBOT_API     API base URL (default: http://localhost:3100)
+  KAIROS_API      API base URL (default: http://localhost:3100)
 `);
 }
 

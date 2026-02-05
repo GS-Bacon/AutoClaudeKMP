@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { orchestrator } from "../core/orchestrator.js";
 import { scheduler } from "../core/scheduler.js";
-import { eventBus, MoltBotEvent } from "../core/event-bus.js";
+import { eventBus, KairosEvent } from "../core/event-bus.js";
 import { HealthChecker } from "../phases/1-health-check/index.js";
 import { snapshotManager } from "../safety/snapshot.js";
 import { rollbackManager } from "../safety/rollback.js";
@@ -27,7 +27,7 @@ const history: Array<{
   files?: string[];
 }> = [];
 
-eventBus.onAll((event: MoltBotEvent) => {
+eventBus.onAll((event: KairosEvent) => {
   if (event.type === "modification") {
     history.push({
       id: `hist_${Date.now()}`,
@@ -248,7 +248,7 @@ router.get("/events", (req: Request, res: Response) => {
   res.write("event: connected\n");
   res.write(`data: {"timestamp":"${new Date().toISOString()}"}\n\n`);
 
-  const subscription = eventBus.onAll((event: MoltBotEvent) => {
+  const subscription = eventBus.onAll((event: KairosEvent) => {
     res.write(`event: ${event.type}\n`);
     res.write(`data: ${JSON.stringify(event)}\n\n`);
   });

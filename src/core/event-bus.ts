@@ -4,7 +4,7 @@ interface EventSubscription {
   unsubscribe: () => void;
 }
 
-export type MoltBotEvent =
+export type KairosEvent =
   | { type: "cycle_started"; timestamp: Date }
   | { type: "cycle_completed"; timestamp: Date; duration: number }
   | { type: "phase_started"; phase: string; timestamp: Date }
@@ -16,11 +16,11 @@ export type MoltBotEvent =
 
 export class EventBus {
   private handlers: Map<string, Set<EventHandler>> = new Map();
-  private allHandlers: Set<EventHandler<MoltBotEvent>> = new Set();
+  private allHandlers: Set<EventHandler<KairosEvent>> = new Set();
 
-  on<T extends MoltBotEvent["type"]>(
+  on<T extends KairosEvent["type"]>(
     eventType: T,
-    handler: EventHandler<Extract<MoltBotEvent, { type: T }>>
+    handler: EventHandler<Extract<KairosEvent, { type: T }>>
   ): EventSubscription {
     if (!this.handlers.has(eventType)) {
       this.handlers.set(eventType, new Set());
@@ -34,7 +34,7 @@ export class EventBus {
     };
   }
 
-  onAll(handler: EventHandler<MoltBotEvent>): EventSubscription {
+  onAll(handler: EventHandler<KairosEvent>): EventSubscription {
     this.allHandlers.add(handler);
     return {
       unsubscribe: () => {
@@ -43,7 +43,7 @@ export class EventBus {
     };
   }
 
-  async emit(event: MoltBotEvent): Promise<void> {
+  async emit(event: KairosEvent): Promise<void> {
     const typeHandlers = this.handlers.get(event.type);
     if (typeHandlers) {
       for (const handler of typeHandlers) {

@@ -38,7 +38,7 @@ export class APIServer {
 
     this.app.get("/", (_req, res) => {
       res.json({
-        name: "MoltBot",
+        name: "KairosAgent",
         version: "1.0.0",
         endpoints: {
           status: "/api/status",

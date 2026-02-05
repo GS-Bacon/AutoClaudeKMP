@@ -1,4 +1,4 @@
-# MoltBot
+# KairosAgent
 
 ## 開発ガイドライン
 

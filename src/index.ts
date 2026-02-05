@@ -5,13 +5,13 @@ import { APIServer } from "./api/server.js";
 import { initializeAI, AIConfig } from "./ai/factory.js";
 import { existsSync, readFileSync, mkdirSync } from "fs";
 
-interface MoltBotConfig {
+interface KairosConfig {
   port: number;
   checkInterval: number;
   ai: AIConfig;
 }
 
-const DEFAULT_CONFIG: MoltBotConfig = {
+const DEFAULT_CONFIG: KairosConfig = {
   port: 3100,
   checkInterval: 30 * 60 * 1000, // 30 minutes
   ai: {
@@ -19,7 +19,7 @@ const DEFAULT_CONFIG: MoltBotConfig = {
   },
 };
 
-function loadConfig(): MoltBotConfig {
+function loadConfig(): KairosConfig {
   const configPath = "./config.json";
   if (existsSync(configPath)) {
     try {
@@ -43,7 +43,7 @@ function ensureDirectories(): void {
 }
 
 async function main(): Promise<void> {
-  logger.info("MoltBot starting...");
+  logger.info("KairosAgent starting...");
 
   ensureDirectories();
 
@@ -88,14 +88,14 @@ async function main(): Promise<void> {
     logger.info(`Received ${signal}, shutting down...`);
     scheduler.stop();
     await server.stop();
-    logger.info("MoltBot stopped");
+    logger.info("KairosAgent stopped");
     process.exit(0);
   };
 
   process.on("SIGINT", () => shutdown("SIGINT"));
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 
-  logger.info("MoltBot is running");
+  logger.info("KairosAgent is running");
 }
 
 main().catch((err) => {

@@ -1,11 +1,11 @@
 {
-  "name": "moltbot-cli",
+  "name": "kairos-cli",
   "version": "1.0.0",
-  "description": "CLI client for MoltBot",
+  "description": "CLI client for KairosAgent",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "moltbot": "./dist/index.js"
+    "kairos": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",
