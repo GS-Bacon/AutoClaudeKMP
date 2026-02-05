@@ -20,6 +20,7 @@ import { getConfig } from "../index.js";
 import { ChangeTracker, changeTracker } from "./change-tracker.js";
 import { ClaudeReviewer, claudeReviewer } from "./claude-reviewer.js";
 import { getRateLimiter } from "./rate-limiter.js";
+import { tokenTracker } from "./token-tracker.js";
 
 export type PhaseName =
   | "health-check"
@@ -191,7 +192,7 @@ export class HybridProvider implements AIProvider {
    */
   private async executeWithGLMFallback<T>(
     operation: (provider: AIProvider) => Promise<T>,
-    context: { files?: string[]; description: string }
+    context: { files?: string[]; description: string; inputText?: string }
   ): Promise<{ result: T; usedProvider: string }> {
     const config = getConfig();
     const shouldTrack = config.rateLimitFallback.trackChanges;
@@ -203,6 +204,13 @@ export class HybridProvider implements AIProvider {
         await this.reviewPendingGLMChanges();
 
         const result = await operation(this.claudeProvider);
+
+        // トークン使用量を記録（文字数ベースの推定）
+        if (context.inputText) {
+          const outputText = typeof result === "string" ? result : JSON.stringify(result);
+          tokenTracker.recordFromText(this.currentPhase, "claude", context.inputText, outputText);
+        }
+
         return { result, usedProvider: "claude" };
       } catch (err) {
         if (err instanceof Error && this.isRateLimitError(err)) {
@@ -222,6 +230,12 @@ export class HybridProvider implements AIProvider {
     logger.info("Falling back to GLM", { phase: this.currentPhase });
 
     const result = await operation(this.glmProvider);
+
+    // トークン使用量を記録（文字数ベースの推定）
+    if (context.inputText) {
+      const outputText = typeof result === "string" ? result : JSON.stringify(result);
+      tokenTracker.recordFromText(this.currentPhase, "glm", context.inputText, outputText);
+    }
 
     // 変更を追跡
     if (shouldTrack) {
@@ -298,6 +312,7 @@ export class HybridProvider implements AIProvider {
 
   async generateCode(prompt: string, context: CodeContext): Promise<string> {
     const config = getConfig();
+    const inputText = `${prompt}\n${context.existingCode || ""}`;
 
     // claudeフェーズでレートリミットフォールバックが有効な場合
     if (
@@ -309,24 +324,48 @@ export class HybridProvider implements AIProvider {
         {
           files: context.file ? [context.file] : [],
           description: `generateCode: ${prompt.substring(0, 200)}`,
+          inputText,
         }
       );
       return result;
     }
 
-    return this.getProviderForPhase().generateCode(prompt, context);
+    const provider = this.getProviderForPhase();
+    const result = await provider.generateCode(prompt, context);
+
+    // トークン使用量を記録
+    tokenTracker.recordFromText(this.currentPhase, provider.name, inputText, result);
+
+    return result;
   }
 
   async generateTest(code: string, context: TestContext): Promise<string> {
-    return this.getProviderForPhase().generateTest(code, context);
+    const provider = this.getProviderForPhase();
+    const inputText = `${code}\n${context.existingTests || ""}`;
+    const result = await provider.generateTest(code, context);
+
+    tokenTracker.recordFromText(this.currentPhase, provider.name, inputText, result);
+
+    return result;
   }
 
   async analyzeCode(code: string): Promise<Analysis> {
-    return this.getProviderForPhase().analyzeCode(code);
+    const provider = this.getProviderForPhase();
+    const result = await provider.analyzeCode(code);
+
+    tokenTracker.recordFromText(this.currentPhase, provider.name, code, JSON.stringify(result));
+
+    return result;
   }
 
   async searchAndAnalyze(query: string, codebase: string[]): Promise<SearchResult> {
-    return this.getProviderForPhase().searchAndAnalyze(query, codebase);
+    const provider = this.getProviderForPhase();
+    const inputText = `${query}\n${codebase.slice(0, 20).join("\n")}`;
+    const result = await provider.searchAndAnalyze(query, codebase);
+
+    tokenTracker.recordFromText(this.currentPhase, provider.name, inputText, JSON.stringify(result));
+
+    return result;
   }
 
   async chat(prompt: string): Promise<string> {
@@ -341,12 +380,18 @@ export class HybridProvider implements AIProvider {
         (provider) => provider.chat(prompt),
         {
           description: `chat: ${prompt.substring(0, 200)}`,
+          inputText: prompt,
         }
       );
       return result;
     }
 
-    return this.getProviderForPhase().chat(prompt);
+    const provider = this.getProviderForPhase();
+    const result = await provider.chat(prompt);
+
+    tokenTracker.recordFromText(this.currentPhase, provider.name, prompt, result);
+
+    return result;
   }
 
   async isAvailable(): Promise<boolean> {

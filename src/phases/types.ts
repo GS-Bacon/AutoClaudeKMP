@@ -81,6 +81,14 @@ export interface CycleContext {
 
   // Trouble tracking
   troubles?: Trouble[];     // サイクル中に発生したトラブル
+
+  // Token usage tracking
+  tokenUsage?: {
+    totalInput: number;
+    totalOutput: number;
+    byPhase: Record<string, { input: number; output: number }>;
+    byProvider: Record<string, { input: number; output: number }>;
+  };
 }
 
 export interface Phase {

@@ -29,6 +29,13 @@ interface RateLimitFallbackConfig {
   reviewOnPhases: string[];
 }
 
+interface ResearchConfig {
+  enabled: boolean;
+  frequency: number;          // N回に1回実行（デフォルト: 5）
+  maxTopicsPerCycle: number;  // 1回のResearchで調査する最大トピック数
+  minConfidenceToQueue: number; // キュー登録の最小信頼度（デフォルト: 0.6）
+}
+
 interface KairosConfig {
   port: number;
   checkInterval: number;
@@ -36,6 +43,7 @@ interface KairosConfig {
   git: GitConfig;
   docs: DocsConfig;
   rateLimitFallback: RateLimitFallbackConfig;
+  research: ResearchConfig;
 }
 
 const DEFAULT_CONFIG: KairosConfig = {
@@ -66,6 +74,12 @@ const DEFAULT_CONFIG: KairosConfig = {
     autoReview: true,
     reviewOnPhases: ["plan", "implement"],
   },
+  research: {
+    enabled: true,
+    frequency: 5,
+    maxTopicsPerCycle: 2,
+    minConfidenceToQueue: 0.6,
+  },
 };
 
 let globalConfig: KairosConfig = DEFAULT_CONFIG;
@@ -82,6 +96,7 @@ function loadConfig(): KairosConfig {
         git: { ...DEFAULT_CONFIG.git, ...loaded.git },
         docs: { ...DEFAULT_CONFIG.docs, ...loaded.docs },
         rateLimitFallback: { ...DEFAULT_CONFIG.rateLimitFallback, ...loaded.rateLimitFallback },
+        research: { ...DEFAULT_CONFIG.research, ...loaded.research },
       };
       return globalConfig;
     } catch (err) {
@@ -96,7 +111,7 @@ export function getConfig(): KairosConfig {
   return globalConfig;
 }
 
-export type { KairosConfig, GitConfig, DocsConfig, RateLimitFallbackConfig };
+export type { KairosConfig, GitConfig, DocsConfig, RateLimitFallbackConfig, ResearchConfig };
 
 function ensureDirectories(): void {
   const dirs = ["./workspace", "./workspace/logs", "./workspace/history", "./workspace/snapshots"];

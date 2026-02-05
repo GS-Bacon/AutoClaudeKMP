@@ -4,6 +4,8 @@ import { Phase, CycleContext, CycleResult, createCycleContext } from "../phases/
 import { goalManager } from "../goals/index.js";
 import { getAIProvider } from "../ai/factory.js";
 import { HybridProvider, PhaseName } from "../ai/hybrid-provider.js";
+import { tokenTracker } from "../ai/token-tracker.js";
+import { ClaudeProvider } from "../ai/claude-provider.js";
 
 import { HealthCheckPhase } from "../phases/1-health-check/index.js";
 import { ErrorDetectPhase } from "../phases/2-error-detect/index.js";
@@ -27,6 +29,8 @@ import {
   collectFromAbstraction,
 } from "../improvement-queue/index.js";
 import { documentUpdater } from "../docs/index.js";
+import { getConfig } from "../index.js";
+import { Researcher, approachExplorer } from "../research/index.js";
 
 export class Orchestrator {
   private phases: Phase[];
@@ -37,6 +41,7 @@ export class Orchestrator {
   private consecutiveCycleFailures: number = 0;
   private systemPaused: boolean = false;
   private readonly MAX_CONSECUTIVE_FAILURES = 5;
+  private cycleCount: number = 0;
 
   constructor() {
     this.phases = [
@@ -76,8 +81,12 @@ export class Orchestrator {
     this.isRunning = true;
     this.lastFailedPhase = null;
     this.hasCriticalFailure = false;
+    this.cycleCount++;
     const context = createCycleContext();
     this.currentContext = context;
+
+    // トークン追跡を開始
+    tokenTracker.startCycle(context.cycleId);
 
     // Initialize learning system
     try {
@@ -159,6 +168,11 @@ export class Orchestrator {
       // Document Update: ドキュメントの自動更新
       await this.executeDocumentUpdate();
 
+      // Research: N回に1回、攻めの改善を実行
+      if (this.shouldRunResearch()) {
+        await this.executeResearch(context);
+      }
+
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       logger.error("Cycle failed with error", { error: errorMessage });
@@ -190,6 +204,25 @@ export class Orchestrator {
             progress.notes
           );
         }
+      }
+
+      // Save token usage statistics
+      try {
+        const tokenStats = tokenTracker.saveCycleStats();
+        if (tokenStats) {
+          context.tokenUsage = {
+            totalInput: tokenStats.totalInput,
+            totalOutput: tokenStats.totalOutput,
+            byPhase: tokenStats.byPhase,
+            byProvider: tokenStats.byProvider,
+          };
+          logger.info("Token usage saved", {
+            totalInput: tokenStats.totalInput,
+            totalOutput: tokenStats.totalOutput,
+          });
+        }
+      } catch (error) {
+        logger.warn("Failed to save token usage", { error });
       }
 
       // Record learning statistics
@@ -505,6 +538,119 @@ export class Orchestrator {
   resetFailureCounter(): void {
     this.consecutiveCycleFailures = 0;
     this.systemPaused = false;
+  }
+
+  /**
+   * Research実行条件をチェック
+   */
+  private shouldRunResearch(): boolean {
+    const config = getConfig();
+    if (!config.research.enabled) {
+      return false;
+    }
+    return this.cycleCount % config.research.frequency === 0;
+  }
+
+  /**
+   * Research（攻めの改善）を実行
+   * ClaudeProviderを使用してWeb検索を含む調査を行い、
+   * 有望なアプローチをimprovementQueueに登録
+   */
+  private async executeResearch(context: CycleContext): Promise<void> {
+    const config = getConfig();
+    const activeGoals = context.activeGoals || [];
+
+    if (activeGoals.length === 0) {
+      logger.debug("No active goals for research");
+      return;
+    }
+
+    logger.info("Starting Research phase", {
+      cycleCount: this.cycleCount,
+      frequency: config.research.frequency,
+      activeGoals: activeGoals.length,
+    });
+
+    try {
+      // ClaudeProviderを直接使用（Research専用、高品質な分析が必要）
+      const claude = new ClaudeProvider({ planModel: "opus" });
+      const researcher = new Researcher(claude);
+
+      // 目標から調査トピックを抽出
+      const topics = researcher.extractTopics(activeGoals);
+      const topicsToResearch = topics.slice(0, config.research.maxTopicsPerCycle);
+
+      logger.info("Research topics extracted", {
+        totalTopics: topics.length,
+        toResearch: topicsToResearch.length,
+      });
+
+      let totalQueued = 0;
+
+      for (const topic of topicsToResearch) {
+        try {
+          // 調査を実行
+          const result = await researcher.research(topic);
+
+          // 有望なアプローチをキューに登録
+          const queuedCount = await approachExplorer.processResearchResult(result);
+          totalQueued += queuedCount;
+
+          logger.info("Research topic completed", {
+            topic: topic.topic,
+            findings: result.findings.length,
+            approaches: result.approaches.length,
+            queued: queuedCount,
+          });
+
+          // 結果をログに保存
+          await this.saveResearchLog(result);
+        } catch (err) {
+          logger.warn("Research topic failed", {
+            topic: topic.topic,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      logger.info("Research phase completed", {
+        topicsResearched: topicsToResearch.length,
+        totalQueued,
+      });
+    } catch (err) {
+      logger.error("Research phase failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  /**
+   * Research結果をログに保存
+   */
+  private async saveResearchLog(result: import("../research/types.js").ResearchResult): Promise<void> {
+    try {
+      const { writeFileSync, existsSync, mkdirSync } = await import("fs");
+      const logDir = "./workspace/logs";
+      if (!existsSync(logDir)) {
+        mkdirSync(logDir, { recursive: true });
+      }
+
+      const date = new Date().toISOString().split("T")[0];
+      const filename = `${logDir}/${date}-research-${result.topic.id}.json`;
+      writeFileSync(filename, JSON.stringify(result, null, 2));
+      logger.debug("Research log saved", { filename });
+    } catch (err) {
+      logger.warn("Failed to save research log", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  /**
+   * サイクル数を取得
+   */
+  getCycleCount(): number {
+    return this.cycleCount;
   }
 }
 

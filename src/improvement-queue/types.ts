@@ -14,6 +14,7 @@ export type ImprovementSource =
   | "phase-test-gen"
   | "phase-verify"
   | "trouble-abstraction"
+  | "research"
   | "manual";
 
 export type ImprovementStatus =
@@ -33,7 +34,8 @@ export type ImprovementType =
   | "tooling"
   | "testing"
   | "security"
-  | "performance";
+  | "performance"
+  | "research-finding";
 
 export interface QueuedImprovement {
   id: string;
@@ -50,6 +52,8 @@ export interface QueuedImprovement {
   relatedTroubleIds?: string[];
   relatedPatternId?: string;
   preventionSuggestionId?: string;
+  relatedGoalId?: string;      // Research由来の場合の関連目標
+  details?: string;            // 詳細説明（Research由来など）
 
   // タイムスタンプ
   createdAt: string;
@@ -77,6 +81,8 @@ export interface QueuedImprovementInput {
   relatedTroubleIds?: string[];
   relatedPatternId?: string;
   preventionSuggestionId?: string;
+  relatedGoalId?: string;
+  details?: string;
 }
 
 export interface QueueStore {
