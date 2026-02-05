@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { Phase, PhaseResult, CycleContext, Improvement } from "../types.js";
 import { ImprovementFinder } from "./finder.js";
 import { logger } from "../../core/logger.js";
@@ -8,6 +10,7 @@ import {
   PatternMatch,
   AIImprovement,
 } from "../../learning/index.js";
+import { improvementQueue, QueuedImprovement } from "../../improvement-queue/index.js";
 
 export class ImproveFindPhase implements Phase {
   name = "improve-find";
@@ -140,6 +143,17 @@ export class ImproveFindPhase implements Phase {
       });
     }
 
+    // 4. 改善キューから優先度の高い項目を取得
+    try {
+      const queuedImprovements = await improvementQueue.getPending(5);
+      for (const queued of queuedImprovements) {
+        context.improvements.push(this.mapQueuedToImprovement(queued));
+      }
+      logger.debug("Added queued improvements", { count: queuedImprovements.length });
+    } catch (error) {
+      logger.debug("Failed to get queued improvements", { error });
+    }
+
     const totalIssues = context.issues.length;
     const totalImprovements = context.improvements.length;
 
@@ -181,8 +195,6 @@ export class ImproveFindPhase implements Phase {
   }
 
   private getSourceFiles(): string[] {
-    const fs = require("fs");
-    const path = require("path");
     const files: string[] = [];
 
     const collectFiles = (dir: string) => {
@@ -222,6 +234,28 @@ export class ImproveFindPhase implements Phase {
       default:
         return "optimization";
     }
+  }
+
+  private mapQueuedToImprovement(queued: QueuedImprovement): Improvement {
+    const typeMapping: Record<string, Improvement["type"]> = {
+      "bug-fix": "fixme",
+      feature: "todo",
+      refactor: "refactor",
+      prevention: "optimization",
+      documentation: "todo",
+      tooling: "tool-adoption",
+      testing: "todo",
+      security: "security",
+      performance: "optimization",
+    };
+
+    return {
+      id: queued.id,
+      type: typeMapping[queued.type] || "optimization",
+      description: `[Queue: ${queued.source}] ${queued.title}`,
+      file: queued.relatedFile || "",
+      priority: queued.priority > 70 ? "high" : queued.priority > 40 ? "medium" : "low",
+    };
   }
 }
 
