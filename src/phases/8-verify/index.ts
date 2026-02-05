@@ -19,9 +19,9 @@ export class VerifyPhase implements Phase {
       };
     }
 
-    logger.debug("Verifying changes");
+    logger.debug("Verifying changes with auto-fix retry");
 
-    const result = await this.verifier.verify(context.snapshotId);
+    const result = await this.verifier.verifyWithRetry(context.snapshotId, 2);
 
     context.testResults = result.testResult
       ? {
