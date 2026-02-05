@@ -26,6 +26,7 @@ import {
   improvementQueue,
   collectFromAbstraction,
 } from "../improvement-queue/index.js";
+import { documentUpdater } from "../docs/index.js";
 
 export class Orchestrator {
   private phases: Phase[];
@@ -154,6 +155,9 @@ export class Orchestrator {
 
       // Trouble Abstraction: トラブルパターンの抽出と改善キュー追加
       await this.executeAbstraction(context);
+
+      // Document Update: ドキュメントの自動更新
+      await this.executeDocumentUpdate();
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -422,6 +426,25 @@ export class Orchestrator {
       }
     } catch (error) {
       logger.warn("Failed to execute abstraction", { error });
+    }
+  }
+
+  /**
+   * ドキュメント自動更新
+   */
+  private async executeDocumentUpdate(): Promise<void> {
+    try {
+      const results = await documentUpdater.updateAllDocuments();
+      const updated = results.filter((r) => r.updated);
+
+      if (updated.length > 0) {
+        logger.info("Documents updated", {
+          count: updated.length,
+          documents: updated.map((r) => r.path),
+        });
+      }
+    } catch (error) {
+      logger.warn("Failed to update documents", { error });
     }
   }
 

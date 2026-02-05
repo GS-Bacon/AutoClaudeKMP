@@ -6,10 +6,36 @@ import { initializeAI, AIConfig } from "./ai/factory.js";
 import { guard } from "./safety/guard.js";
 import { existsSync, readFileSync, mkdirSync } from "fs";
 
+interface GitConfig {
+  autoPush: boolean;
+  pushRemote: string;
+  allowProtectedBranchPush: boolean;
+}
+
+interface DocsConfig {
+  enabled: boolean;
+  updateFrequency: "every-cycle" | "daily" | "weekly";
+  targets: Array<{
+    path: string;
+    sections: string[];
+  }>;
+}
+
+interface RateLimitFallbackConfig {
+  enabled: boolean;
+  fallbackProvider: "glm";
+  trackChanges: boolean;
+  autoReview: boolean;
+  reviewOnPhases: string[];
+}
+
 interface KairosConfig {
   port: number;
   checkInterval: number;
   ai: AIConfig;
+  git: GitConfig;
+  docs: DocsConfig;
+  rateLimitFallback: RateLimitFallbackConfig;
 }
 
 const DEFAULT_CONFIG: KairosConfig = {
@@ -18,7 +44,31 @@ const DEFAULT_CONFIG: KairosConfig = {
   ai: {
     provider: "claude",
   },
+  git: {
+    autoPush: true,
+    pushRemote: "origin",
+    allowProtectedBranchPush: false,
+  },
+  docs: {
+    enabled: true,
+    updateFrequency: "every-cycle",
+    targets: [
+      {
+        path: "./README.md",
+        sections: ["LEARNING_STATS", "SYSTEM_STATUS"],
+      },
+    ],
+  },
+  rateLimitFallback: {
+    enabled: true,
+    fallbackProvider: "glm",
+    trackChanges: true,
+    autoReview: true,
+    reviewOnPhases: ["plan", "implement"],
+  },
 };
+
+let globalConfig: KairosConfig = DEFAULT_CONFIG;
 
 function loadConfig(): KairosConfig {
   const configPath = "./config.json";
@@ -26,13 +76,27 @@ function loadConfig(): KairosConfig {
     try {
       const content = readFileSync(configPath, "utf-8");
       const loaded = JSON.parse(content);
-      return { ...DEFAULT_CONFIG, ...loaded };
+      globalConfig = {
+        ...DEFAULT_CONFIG,
+        ...loaded,
+        git: { ...DEFAULT_CONFIG.git, ...loaded.git },
+        docs: { ...DEFAULT_CONFIG.docs, ...loaded.docs },
+        rateLimitFallback: { ...DEFAULT_CONFIG.rateLimitFallback, ...loaded.rateLimitFallback },
+      };
+      return globalConfig;
     } catch (err) {
       logger.warn("Failed to load config.json, using defaults");
     }
   }
+  globalConfig = DEFAULT_CONFIG;
   return DEFAULT_CONFIG;
 }
+
+export function getConfig(): KairosConfig {
+  return globalConfig;
+}
+
+export type { KairosConfig, GitConfig, DocsConfig, RateLimitFallbackConfig };
 
 function ensureDirectories(): void {
   const dirs = ["./workspace", "./workspace/logs", "./workspace/history", "./workspace/snapshots"];
