@@ -8,37 +8,103 @@ import {
 } from "./provider.js";
 import { logger } from "../core/logger.js";
 
+export interface ClaudeProviderOptions {
+  model?: string;           // デフォルト: sonnet (Claude CLIデフォルト)
+  planModel?: string;       // plan策定用モデル（デフォルト: opus）
+  timeout?: number;         // デフォルト: 300000 (5分)
+  idleTimeout?: number;     // データなしのタイムアウト: 60000 (1分)
+}
+
 export class ClaudeProvider implements AIProvider {
   name = "claude";
+  private options: ClaudeProviderOptions;
 
-  private async runClaude(prompt: string, options: { print?: boolean } = {}): Promise<string> {
+  constructor(options: ClaudeProviderOptions = {}) {
+    this.options = {
+      model: options.model,  // デフォルトはClaude CLIのデフォルト（sonnet）
+      planModel: options.planModel || "opus",  // plan策定はopus
+      timeout: options.timeout || 600000,      // 10分（最大）
+      idleTimeout: options.idleTimeout || 180000, // 3分（初回応答待ち含む）
+    };
+  }
+
+  private async runClaude(prompt: string, options: { timeout?: number; model?: string } = {}): Promise<string> {
     return new Promise((resolve, reject) => {
-      const args = ["--print", prompt];
-      const proc = spawn("claude", args, {
+      const maxTimeout = options.timeout || this.options.timeout!;
+      const idleTimeout = this.options.idleTimeout!;
+      const model = options.model || this.options.model;
+
+      // Claude CLIコマンドを構築
+      const claudeArgs = ["--print", "--no-session-persistence"];
+      if (model) {
+        claudeArgs.push("--model", model);
+      }
+      // プロンプトをシングルクォートでエスケープ
+      const escapedPrompt = prompt.replace(/'/g, "'\\''");
+      const claudeCmd = `claude ${claudeArgs.join(" ")} '${escapedPrompt}'`;
+
+      // script コマンドでpty経由で実行（Claude CLIはTTY必須）
+      const proc = spawn("script", ["-q", "-c", claudeCmd, "/dev/null"], {
         stdio: ["pipe", "pipe", "pipe"],
       });
 
       let stdout = "";
       let stderr = "";
+      let timedOut = false;
+      let lastActivity = Date.now();
+
+      // アクティビティベースのタイムアウト
+      const checkIdle = setInterval(() => {
+        const idleTime = Date.now() - lastActivity;
+        const totalTime = Date.now() - startTime;
+
+        if (idleTime > idleTimeout) {
+          timedOut = true;
+          logger.warn("Claude CLI idle timeout", { idleTime, idleTimeout });
+          proc.kill("SIGTERM");
+        } else if (totalTime > maxTimeout) {
+          timedOut = true;
+          logger.warn("Claude CLI max timeout", { totalTime, maxTimeout });
+          proc.kill("SIGTERM");
+        }
+      }, 5000);
+
+      const startTime = Date.now();
 
       proc.stdout.on("data", (data) => {
+        lastActivity = Date.now();
         stdout += data.toString();
       });
 
       proc.stderr.on("data", (data) => {
+        lastActivity = Date.now();
         stderr += data.toString();
       });
 
       proc.on("close", (code) => {
-        if (code !== 0) {
-          logger.error("Claude CLI failed", { code, stderr });
+        clearInterval(checkIdle);
+        const duration = Date.now() - startTime;
+
+        if (timedOut) {
+          logger.error("Claude CLI timed out", { duration, maxTimeout, idleTimeout });
+          reject(new Error(`Claude CLI timed out after ${duration}ms`));
+        } else if (code !== 0) {
+          logger.error("Claude CLI failed", { code, stderr, duration });
           reject(new Error(`Claude CLI exited with code ${code}: ${stderr}`));
         } else {
-          resolve(stdout.trim());
+          // scriptコマンドの出力からANSIエスケープシーケンスを除去
+          const cleanOutput = stdout
+            .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")  // ANSI escape codes
+            .replace(/\x1b\][^\x07]*\x07/g, "")     // OSC sequences
+            .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "")  // Control chars
+            .trim();
+          logger.debug("Claude CLI completed", { duration, responseLength: cleanOutput.length });
+          resolve(cleanOutput);
         }
       });
 
       proc.on("error", (err) => {
+        clearInterval(checkIdle);
         reject(err);
       });
     });
@@ -138,7 +204,8 @@ Analyze which files are most relevant and why. Output JSON:
   }
 
   async chat(prompt: string): Promise<string> {
-    return this.runClaude(prompt);
+    // plan策定などの重要な判断にはopusを使用
+    return this.runClaude(prompt, { model: this.options.planModel });
   }
 
   async isAvailable(): Promise<boolean> {

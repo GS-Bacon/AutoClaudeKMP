@@ -9,6 +9,9 @@ export interface AIConfig {
   provider: "claude" | "glm" | "opencode" | "hybrid";
   claude?: {
     model?: string;
+    planModel?: string;  // plan策定用モデル（デフォルト: opus）
+    timeout?: number;
+    idleTimeout?: number;
   };
   glm?: {
     apiKey: string;
@@ -22,8 +25,8 @@ let currentProvider: AIProvider | null = null;
 export function createAIProvider(config: AIConfig): AIProvider {
   switch (config.provider) {
     case "claude":
-      logger.info("Creating Claude provider");
-      return new ClaudeProvider();
+      logger.info("Creating Claude provider", { model: config.claude?.model || "default" });
+      return new ClaudeProvider(config.claude);
 
     case "glm":
       if (!config.glm?.apiKey) {

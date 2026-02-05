@@ -99,16 +99,36 @@ export class CodeImplementer {
 
       const contentValidation = guard.validateCodeContent(newContent);
       if (!contentValidation.safe) {
-        logger.error("Generated code blocked: dangerous patterns detected", {
+        logger.warn("Potentially dangerous patterns detected, requesting AI review", {
           file: filePath,
           warnings: contentValidation.warnings,
         });
-        return {
+
+        // AI判断を仰ぐ
+        const aiReview = await guard.validateCodeWithAI(
+          newContent,
+          `Creating new file: ${filePath}\nDetails: ${details}`,
+          contentValidation.warnings
+        );
+
+        if (!aiReview.approved) {
+          logger.error("Code blocked after AI review", {
+            file: filePath,
+            warnings: contentValidation.warnings,
+            reason: aiReview.reason,
+          });
+          return {
+            file: filePath,
+            changeType: "create",
+            success: false,
+            error: `Blocked by AI review: ${aiReview.reason}`,
+          };
+        }
+
+        logger.info("Code approved by AI review", {
           file: filePath,
-          changeType: "create",
-          success: false,
-          error: `Dangerous code detected: ${contentValidation.warnings.join(", ")}`,
-        };
+          reason: aiReview.reason,
+        });
       }
 
       const dir = dirname(filePath);
@@ -155,17 +175,37 @@ export class CodeImplementer {
 
       const contentValidation = guard.validateCodeContent(newContent);
       if (!contentValidation.safe) {
-        logger.error("Modified code blocked: dangerous patterns detected", {
+        logger.warn("Potentially dangerous patterns in modified code, requesting AI review", {
           file: filePath,
           warnings: contentValidation.warnings,
         });
-        return {
+
+        // AI判断を仰ぐ
+        const aiReview = await guard.validateCodeWithAI(
+          newContent,
+          `Modifying file: ${filePath}\nDetails: ${details}\nIssue: ${plan.targetIssue?.message || plan.targetImprovement?.description}`,
+          contentValidation.warnings
+        );
+
+        if (!aiReview.approved) {
+          logger.error("Modified code blocked after AI review", {
+            file: filePath,
+            warnings: contentValidation.warnings,
+            reason: aiReview.reason,
+          });
+          return {
+            file: filePath,
+            changeType: "modify",
+            originalContent,
+            success: false,
+            error: `Blocked by AI review: ${aiReview.reason}`,
+          };
+        }
+
+        logger.info("Modified code approved by AI review", {
           file: filePath,
-          changeType: "modify",
-          originalContent,
-          success: false,
-          error: `Dangerous code detected: ${contentValidation.warnings.join(", ")}`,
-        };
+          reason: aiReview.reason,
+        });
       }
 
       writeFileSync(filePath, newContent);
