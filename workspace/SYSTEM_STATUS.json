@@ -1,0 +1,34 @@
+{
+  "timestamp": "2026-02-05T02:22:25.319Z",
+  "health": {
+    "state": "degraded",
+    "uptime": 37747,
+    "lastHeartbeat": "2026-02-05T02:17:24.370Z",
+    "resources": {
+      "cpuPercent": 1,
+      "memoryMB": 7197.76171875,
+      "memoryPercent": 22.954633931524537,
+      "diskGB": 35.22544860839844,
+      "diskPercent": 36.636004084253436,
+      "networkMbps": 0,
+      "processCount": 903
+    },
+    "tools": {
+      "claudeCode": "degraded",
+      "browser": "degraded",
+      "network": "healthy",
+      "discord": "healthy"
+    },
+    "errors": [],
+    "warnings": [],
+    "currentPhase": {
+      "phase": "idle",
+      "description": "次のタスクを待機中",
+      "startedAt": "2026-02-05T02:09:45.198Z",
+      "nextSteps": [
+        "次の定期タスクまで待機"
+      ]
+    }
+  },
+  "uptime": 37747
+}
