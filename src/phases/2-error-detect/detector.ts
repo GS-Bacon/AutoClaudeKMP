@@ -20,6 +20,9 @@ export class ErrorDetector {
       return { errors, warnings, totalScanned };
     }
 
+    // 直近30分のエラーのみを対象とする（過去のエラーの再検出を防止）
+    const cutoffTime = new Date(Date.now() - 30 * 60 * 1000);
+
     const logFiles = readdirSync(this.logDir)
       .filter((f) => f.endsWith(".log"))
       .sort()
@@ -38,6 +41,9 @@ export class ErrorDetector {
 
           const parsed = this.parseLine(line);
           if (!parsed) continue;
+
+          // 時間フィルタリング: cutoffTime 以降のエラーのみ
+          if (parsed.timestamp < cutoffTime) continue;
 
           if (parsed.level === "error") {
             errors.push(parsed);

@@ -1,4 +1,4 @@
-import { execSync } from "child_process";
+import { spawn, execSync } from "child_process";
 import {
   AIProvider,
   CodeContext,
@@ -10,27 +10,66 @@ import { logger } from "../core/logger.js";
 
 export class OpenCodeProvider implements AIProvider {
   name = "opencode";
+  private maxTimeout: number;
 
-  private runOpenCode(prompt: string): string {
-    try {
-      // ダブルクォートとバックスラッシュをエスケープ
-      const escapedPrompt = prompt
-        .replace(/\\/g, "\\\\")
-        .replace(/"/g, '\\"')
-        .replace(/\$/g, "\\$")
-        .replace(/`/g, "\\`");
-      const result = execSync(`opencode run "${escapedPrompt}"`, {
-        encoding: "utf-8",
-        timeout: 120000,
-        maxBuffer: 10 * 1024 * 1024,
+  constructor(options: { maxTimeout?: number } = {}) {
+    this.maxTimeout = options.maxTimeout || 300000; // 5分（保険）
+  }
+
+  /**
+   * イベントベースの終了検出でOpenCodeを実行
+   * stdin経由でプロンプトを渡す（長いプロンプトでも安全）
+   */
+  private runOpenCode(prompt: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      // stdin経由でプロンプトを渡す（"-" は標準入力から読み込む）
+      const proc = spawn("opencode", ["run", "-"], {
+        stdio: ["pipe", "pipe", "pipe"],
       });
-      return result.trim();
-    } catch (err) {
-      logger.error("OpenCode execution failed", {
-        error: err instanceof Error ? err.message : String(err),
+
+      let stdout = "";
+      let stderr = "";
+      const startTime = Date.now();
+
+      // データ収集
+      proc.stdout.on("data", (data) => {
+        stdout += data.toString();
       });
-      throw err;
-    }
+
+      proc.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      // 保険としての最大タイムアウト（5分）
+      const timeoutTimer = setTimeout(() => {
+        logger.warn("OpenCode max timeout reached", { maxTimeout: this.maxTimeout });
+        proc.kill("SIGTERM");
+      }, this.maxTimeout);
+
+      // 終了検出（closeイベント：即座に検出）
+      proc.on("close", (code) => {
+        clearTimeout(timeoutTimer);
+        const duration = Date.now() - startTime;
+
+        if (code !== 0) {
+          logger.error("OpenCode execution failed", { code, stderr, duration });
+          reject(new Error(`OpenCode exited with code ${code}: ${stderr.slice(0, 200)}`));
+        } else {
+          logger.debug("OpenCode completed", { duration, responseLength: stdout.length });
+          resolve(stdout.trim());
+        }
+      });
+
+      proc.on("error", (err) => {
+        clearTimeout(timeoutTimer);
+        logger.error("OpenCode spawn error", { error: err.message });
+        reject(err);
+      });
+
+      // プロンプトをstdinに書き込んで閉じる
+      proc.stdin.write(prompt);
+      proc.stdin.end();
+    });
   }
 
   async generateCode(prompt: string, context: CodeContext): Promise<string> {
@@ -76,7 +115,7 @@ Code:
 ${code}
 \`\`\``;
 
-    const response = this.runOpenCode(prompt);
+    const response = await this.runOpenCode(prompt);
     try {
       const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -95,7 +134,7 @@ ${code}
   async searchAndAnalyze(query: string, codebase: string[]): Promise<SearchResult> {
     const prompt = `Query: ${query}\nFiles: ${codebase.slice(0, 20).join(", ")}\n\nOutput JSON: {"query":"","findings":[{"file":"","content":"","relevance":0}],"analysis":""}`;
 
-    const response = this.runOpenCode(prompt);
+    const response = await this.runOpenCode(prompt);
     try {
       const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (jsonMatch) {

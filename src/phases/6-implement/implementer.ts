@@ -101,10 +101,8 @@ export class CodeImplementer {
 
     try {
       for (const step of plan.steps) {
-        // Prevent double src/ prefix: if step.file already starts with src/, use it as-is
-        let fullPath = step.file.startsWith("src/") || step.file.startsWith("./src/")
-          ? step.file.replace(/^\.\//, "")  // Remove leading ./ if present
-          : join(this.srcDir, step.file);
+        // パス正規化を最初に適用（src/src/ 重複などを解消）
+        let fullPath = this.normalizePath(step.file);
 
         // パス検証と自動修正
         const pathValidation = guard.validatePath(fullPath);
@@ -263,6 +261,7 @@ export class CodeImplementer {
         changeType: "create",
         newContent,
         success: true,
+        summary: `Created new file: ${details.slice(0, 100)}${details.length > 100 ? '...' : ''}`,
       };
     } catch (err) {
       return {
@@ -346,12 +345,17 @@ export class CodeImplementer {
       // 安全なファイル書き込み
       CodeSanitizer.safeWriteFile(filePath, newContent, { validateTs: filePath.endsWith(".ts") });
 
+      // 変更サマリーを生成
+      const summary = this.generateChangeSummary(originalContent, newContent, details);
+
       return {
         file: filePath,
         changeType: "modify",
         originalContent,
         newContent,
         success: true,
+        summary,
+        relatedIssue: plan.targetIssue?.id || plan.targetImprovement?.id,
       };
     } catch (err) {
       return {
@@ -361,6 +365,51 @@ export class CodeImplementer {
         error: err instanceof Error ? err.message : String(err),
       };
     }
+  }
+
+  /**
+   * ファイルパスを正規化する
+   * - 先頭の ./ を除去
+   * - src/src/ 重複を解消
+   * - src/ で始まらない場合は追加
+   */
+  private normalizePath(filePath: string): string {
+    // 1. 先頭の ./ を除去
+    let normalized = filePath.replace(/^\.\//, "");
+
+    // 2. src/src/ 重複を解消（複数回適用）
+    while (normalized.includes("src/src/")) {
+      normalized = normalized.replace(/src\/src\//g, "src/");
+    }
+
+    // 3. src/ で始まる場合はそのまま使用
+    if (normalized.startsWith("src/")) {
+      return normalized;
+    }
+
+    // 4. src/ で始まらない場合は追加
+    return join(this.srcDir, normalized);
+  }
+
+  /**
+   * 変更内容のサマリーを生成
+   */
+  private generateChangeSummary(originalContent: string, newContent: string, details: string): string {
+    const originalLines = originalContent.split('\n').length;
+    const newLines = newContent.split('\n').length;
+    const lineDiff = newLines - originalLines;
+
+    // 行数の変化を記述
+    let lineChange = '';
+    if (lineDiff > 0) {
+      lineChange = `(+${lineDiff} lines)`;
+    } else if (lineDiff < 0) {
+      lineChange = `(${lineDiff} lines)`;
+    }
+
+    // detailsを短縮してサマリーに
+    const shortDetails = details.slice(0, 80).replace(/\n/g, ' ');
+    return `${shortDetails}${shortDetails.length < details.length ? '...' : ''} ${lineChange}`.trim();
   }
 
   private deleteFile(filePath: string): ImplementationChange {
