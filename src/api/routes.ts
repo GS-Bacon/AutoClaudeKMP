@@ -523,18 +523,41 @@ router.get("/logs/files/:filename", (req: Request, res: Response) => {
 const CYCLE_LOG_PREFIX = "cycle-";
 const RESEARCH_LOG_PREFIX = "research-";
 
+/**
+ * サイクルタイプを判定（ファイル内容から）
+ */
+function detectCycleType(filename: string, content: string): "repair" | "research" | "optimize" | "refactor" {
+  // ファイル名からタイプを判定
+  if (filename.includes("-research-")) {
+    return "research";
+  }
+  // コンテンツからタイプを判定（新形式: **Type**: で始まる行）
+  const typeMatch = content.match(/\*\*Type\*\*:\s*🔬\s*Research/);
+  if (typeMatch) {
+    return "research";
+  }
+  // デフォルトはrepair
+  return "repair";
+}
+
 function parseCycleLogSummary(filename: string, content: string): CycleSummary | null {
-  const match = filename.match(/^(\d{4}-\d{2}-\d{2})-cycle-(\d+)\.md$/);
-  if (!match) return null;
+  // repairログ形式: YYYY-MM-DD-cycle-XXXXXXX.md
+  const cycleMatch = filename.match(/^(\d{4}-\d{2}-\d{2})-cycle-(\d+)\.md$/);
+  // researchログ形式: YYYY-MM-DD-research-XXXXXXX.md
+  const researchMatch = filename.match(/^(\d{4}-\d{2}-\d{2})-research-(\w+)\.md$/);
 
-  const date = match[1];
-  const cycleId = `cycle_${match[2]}`;
+  if (!cycleMatch && !researchMatch) return null;
 
-  // Parse summary section
-  const startTimeMatch = content.match(/\*\*Start Time\*\*:\s*(.+)/);
-  const endTimeMatch = content.match(/\*\*End Time\*\*:\s*(.+)/);
+  const isResearch = !!researchMatch;
+  const match = isResearch ? researchMatch : cycleMatch;
+  const date = match![1];
+  const cycleId = isResearch ? `research_${match![2]}` : `cycle_${match![2]}`;
+
+  // Parse summary section（新旧両形式をサポート）
+  const startTimeMatch = content.match(/\*\*Start(?:\s+Time)?\*\*:\s*(.+)/);
+  const endTimeMatch = content.match(/\*\*End(?:\s+Time)?\*\*:\s*(.+)/);
   const durationMatch = content.match(/\*\*Duration\*\*:\s*([\d.]+)\s*seconds/);
-  const statusMatch = content.match(/\*\*Status\*\*:\s*(Success|Failure)/);
+  const statusMatch = content.match(/\*\*Status\*\*:\s*(?:✅\s*)?(?:❌\s*)?(Success|Failure)/i);
 
   // Count issues
   const issuesSection = content.match(/## Issues Detected[\s\S]*?(?=##|$)/);
@@ -554,12 +577,28 @@ function parseCycleLogSummary(filename: string, content: string): CycleSummary |
     ? (troublesSection[0].match(/^- /gm) || []).length
     : 0;
 
+  // リサーチ用: findings / approachesをカウント
+  let findingsCount = 0;
+  let approachesCount = 0;
+  if (isResearch) {
+    const findingsSection = content.match(/## Findings[\s\S]*?(?=##|$)/);
+    findingsCount = findingsSection
+      ? (findingsSection[0].match(/^### /gm) || []).length
+      : 0;
+    const approachesSection = content.match(/## Approaches[\s\S]*?(?=##|$)/);
+    approachesCount = approachesSection
+      ? (approachesSection[0].match(/^### /gm) || []).length
+      : 0;
+  }
+
   const startTime = startTimeMatch ? startTimeMatch[1].trim() : "";
   const endTime = endTimeMatch ? endTimeMatch[1].trim() : undefined;
   const duration = durationMatch ? parseFloat(durationMatch[1]) : 0;
-  const success = statusMatch ? statusMatch[1] === "Success" : false;
+  const success = statusMatch ? statusMatch[1].toLowerCase() === "success" : true;
 
-  return {
+  const cycleType = detectCycleType(filename, content);
+
+  const summary: CycleSummary = {
     cycleId,
     filename,
     date,
@@ -570,8 +609,16 @@ function parseCycleLogSummary(filename: string, content: string): CycleSummary |
     issueCount: issueLines,
     changeCount: changeLines,
     troubleCount: troubleLines,
-    cycleType: "repair",
+    cycleType,
   };
+
+  // リサーチ固有のフィールドを追加
+  if (cycleType === "research") {
+    (summary as CycleSummary & { findingsCount?: number; approachesCount?: number }).findingsCount = findingsCount;
+    (summary as CycleSummary & { findingsCount?: number; approachesCount?: number }).approachesCount = approachesCount;
+  }
+
+  return summary;
 }
 
 /**
@@ -680,6 +727,7 @@ function parseCycleLogDetail(filename: string, content: string): CycleDetail | n
     troubles,
     tokenUsage,
     rawContent: content,
+    cycleType: summary.cycleType,
   };
 }
 
@@ -699,12 +747,13 @@ router.get("/cycles", (req: Request, res: Response) => {
 
   const allFiles = readdirSync(MARKDOWN_LOG_DIR);
 
-  // 修復サイクルログ（.md）をパース
-  const cycleFiles = allFiles
-    .filter((f) => f.endsWith(".md") && f.includes(CYCLE_LOG_PREFIX));
+  // MDログ（cycle- / research-）をすべてパース
+  const mdFiles = allFiles.filter(
+    (f) => f.endsWith(".md") && (f.includes(CYCLE_LOG_PREFIX) || f.includes(RESEARCH_LOG_PREFIX))
+  );
 
   const cycles: CycleSummary[] = [];
-  for (const filename of cycleFiles) {
+  for (const filename of mdFiles) {
     const filePath = join(MARKDOWN_LOG_DIR, filename);
     const content = readFileSync(filePath, "utf-8");
     const summary = parseCycleLogSummary(filename, content);
@@ -713,11 +762,11 @@ router.get("/cycles", (req: Request, res: Response) => {
     }
   }
 
-  // リサーチログ（.json）をパース
-  const researchFiles = allFiles
+  // 後方互換: 旧形式のリサーチログ（.json）もパース
+  const researchJsonFiles = allFiles
     .filter((f) => f.endsWith(".json") && f.includes(RESEARCH_LOG_PREFIX));
 
-  for (const filename of researchFiles) {
+  for (const filename of researchJsonFiles) {
     const filePath = join(MARKDOWN_LOG_DIR, filename);
     const content = readFileSync(filePath, "utf-8");
     const summary = parseResearchLogSummary(filename, content);

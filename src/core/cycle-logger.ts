@@ -7,7 +7,7 @@
 
 import { writeFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from "fs";
 import { join } from "path";
-import { CycleContext } from "../phases/types.js";
+import { CycleContext, CycleType, ResearchCycleData } from "../phases/types.js";
 import { logger } from "./logger.js";
 import { aiSummarizer, CycleSummary, CycleSummaryInput } from "../ai/summarizer.js";
 
@@ -16,6 +16,7 @@ const MAX_MESSAGE_LENGTH = 200;  // エラーメッセージの最大長
 
 export interface CycleLogData {
   cycleId: string;
+  cycleType: CycleType;  // サイクルタイプ
   startTime: Date;
   endTime: Date;
   duration: number;
@@ -46,6 +47,14 @@ export interface CycleLogData {
   failedPhase?: string;
   failureReason?: string;
   aiSummary?: CycleSummary;
+  // リサーチサイクル用データ
+  researchData?: {
+    topic: { id: string; topic: string; source: string; priority: number; relatedGoalId?: string; };
+    findings: Array<{ source: string; summary: string; relevance: number; }>;
+    approaches: Array<{ id: string; description: string; pros: string[]; cons: string[]; estimatedEffort: string; confidence: number; }>;
+    recommendations: string[];
+    queuedImprovements: number;
+  };
 }
 
 class CycleLogger {
@@ -58,6 +67,21 @@ class CycleLogger {
       return false;
     }
 
+    // タイプ別判定
+    if (context.cycleData) {
+      switch (context.cycleData.type) {
+        case "research": {
+          const data = context.cycleData as ResearchCycleData;
+          // findingsまたはapproachesがあればログ
+          return data.findings.length > 0 || data.approaches.length > 0;
+        }
+        // 将来のタイプもここに追加
+        default:
+          break;
+      }
+    }
+
+    // 既存のrepairロジック
     // 変更があった場合はログ
     if (context.implementedChanges && context.implementedChanges.length > 0) {
       return true;
@@ -163,14 +187,27 @@ class CycleLogger {
   }
 
   /**
+   * サイクルタイプを判定
+   */
+  private determineCycleType(context: CycleContext): CycleType {
+    if (context.cycleData) {
+      return context.cycleData.type;
+    }
+    // デフォルトはrepair
+    return "repair";
+  }
+
+  /**
    * ログデータを構築
    */
   private buildLogData(context: CycleContext, success: boolean, skippedEarly: boolean): CycleLogData {
     const endTime = new Date();
     const duration = endTime.getTime() - context.startTime.getTime();
+    const cycleType = this.determineCycleType(context);
 
-    return {
+    const logData: CycleLogData = {
       cycleId: context.cycleId,
+      cycleType,
       startTime: context.startTime,
       endTime,
       duration,
@@ -203,6 +240,20 @@ class CycleLogger {
       failedPhase: context.failedPhase,
       failureReason: context.failureReason,
     };
+
+    // リサーチデータを追加
+    if (context.cycleData?.type === "research") {
+      const researchData = context.cycleData as ResearchCycleData;
+      logData.researchData = {
+        topic: researchData.topic,
+        findings: researchData.findings,
+        approaches: researchData.approaches,
+        recommendations: researchData.recommendations,
+        queuedImprovements: researchData.queuedImprovements,
+      };
+    }
+
+    return logData;
   }
 
   /**
@@ -223,13 +274,126 @@ class CycleLogger {
   }
 
   /**
-   * Markdown形式でフォーマット
+   * Markdown形式でフォーマット（タイプ別ディスパッチ）
    */
   private formatMarkdown(data: CycleLogData): string {
+    switch (data.cycleType) {
+      case "research":
+        return this.formatResearchMarkdown(data);
+      default:
+        return this.formatRepairMarkdown(data);
+    }
+  }
+
+  /**
+   * リサーチサイクル用Markdownフォーマット
+   */
+  private formatResearchMarkdown(data: CycleLogData): string {
+    const lines: string[] = [];
+    const research = data.researchData;
+
+    lines.push(`# Research Log: ${data.cycleId}`);
+    lines.push("");
+    lines.push(`**Type**: 🔬 Research Cycle`);
+    lines.push("");
+
+    // Topic Section
+    if (research?.topic) {
+      lines.push("## Research Topic");
+      lines.push(`- **Topic**: ${research.topic.topic}`);
+      lines.push(`- **Source**: ${research.topic.source}`);
+      lines.push(`- **Priority**: ${research.topic.priority}`);
+      if (research.topic.relatedGoalId) {
+        lines.push(`- **Related Goal**: ${research.topic.relatedGoalId}`);
+      }
+      lines.push("");
+    }
+
+    // Quick Summary
+    lines.push("## Quick Summary");
+    lines.push(`- **Status**: ${data.success ? "✅ Success" : "❌ Failure"}`);
+    lines.push(`- **Duration**: ${(data.duration / 1000).toFixed(1)} seconds`);
+    lines.push(`- **Findings**: ${research?.findings.length || 0}`);
+    lines.push(`- **Approaches**: ${research?.approaches.length || 0}`);
+    lines.push(`- **Queued Improvements**: ${research?.queuedImprovements || 0}`);
+    lines.push("");
+
+    // Timing
+    lines.push("## Timing");
+    lines.push(`- **Start**: ${data.startTime.toISOString()}`);
+    lines.push(`- **End**: ${data.endTime.toISOString()}`);
+    lines.push("");
+
+    // Findings
+    if (research?.findings && research.findings.length > 0) {
+      lines.push("## Findings");
+      lines.push("");
+      for (const finding of research.findings) {
+        lines.push(`### ${finding.source}`);
+        lines.push(`**Relevance**: ${(finding.relevance * 100).toFixed(0)}%`);
+        lines.push("");
+        lines.push(finding.summary);
+        lines.push("");
+      }
+    }
+
+    // Approaches
+    if (research?.approaches && research.approaches.length > 0) {
+      lines.push("## Approaches");
+      lines.push("");
+      for (const approach of research.approaches) {
+        lines.push(`### ${approach.description}`);
+        lines.push(`**Confidence**: ${(approach.confidence * 100).toFixed(0)}% | **Effort**: ${approach.estimatedEffort}`);
+        lines.push("");
+        if (approach.pros.length > 0) {
+          lines.push("**Pros:**");
+          for (const pro of approach.pros) {
+            lines.push(`- ✅ ${pro}`);
+          }
+          lines.push("");
+        }
+        if (approach.cons.length > 0) {
+          lines.push("**Cons:**");
+          for (const con of approach.cons) {
+            lines.push(`- ❌ ${con}`);
+          }
+          lines.push("");
+        }
+      }
+    }
+
+    // Recommendations
+    if (research?.recommendations && research.recommendations.length > 0) {
+      lines.push("## Recommendations");
+      lines.push("");
+      for (const rec of research.recommendations) {
+        lines.push(`- 💡 ${rec}`);
+      }
+      lines.push("");
+    }
+
+    // Token Usage
+    if (data.tokenUsage) {
+      lines.push("## Token Usage");
+      lines.push(`- **Input**: ${data.tokenUsage.totalInput.toLocaleString()} tokens`);
+      lines.push(`- **Output**: ${data.tokenUsage.totalOutput.toLocaleString()} tokens`);
+      lines.push(`- **Total**: ${(data.tokenUsage.totalInput + data.tokenUsage.totalOutput).toLocaleString()} tokens`);
+      lines.push("");
+    }
+
+    return lines.join("\n");
+  }
+
+  /**
+   * リペアサイクル用Markdownフォーマット（既存のロジック）
+   */
+  private formatRepairMarkdown(data: CycleLogData): string {
     const lines: string[] = [];
     const stats = this.calculateSummaryStats(data);
 
     lines.push(`# Cycle Log: ${data.cycleId}`);
+    lines.push("");
+    lines.push(`**Type**: 🔧 Repair Cycle`);
     lines.push("");
 
     // AI Summary Section（最初に表示）
@@ -331,8 +495,10 @@ class CycleLogger {
    */
   private getFilename(data: CycleLogData): string {
     const date = data.startTime.toISOString().split("T")[0];
-    const shortId = data.cycleId.replace("cycle_", "").substring(0, 10);
-    return `${date}-cycle-${shortId}.md`;
+    const shortId = data.cycleId.replace("cycle_", "").replace("research_", "").substring(0, 10);
+    // タイプに応じたプレフィックス
+    const typePrefix = data.cycleType === "research" ? "research" : "cycle";
+    return `${date}-${typePrefix}-${shortId}.md`;
   }
 
   /**
@@ -449,8 +615,13 @@ class CycleLogger {
         };
       }
 
+      // cycleTypeを判定（ファイル内容から）
+      const typeMatch = content.match(/\*\*Type\*\*:\s*🔬\s*Research/);
+      const cycleType: CycleType = typeMatch ? "research" : "repair";
+
       return {
         cycleId,
+        cycleType,
         startTime,
         endTime,
         duration,

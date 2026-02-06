@@ -1,6 +1,6 @@
 import { logger } from "./logger.js";
 import { eventBus } from "./event-bus.js";
-import { Phase, CycleContext, CycleResult, createCycleContext } from "../phases/types.js";
+import { Phase, CycleContext, CycleResult, createCycleContext, ResearchCycleData } from "../phases/types.js";
 import { goalManager } from "../goals/index.js";
 import { getAIProvider } from "../ai/factory.js";
 import { HybridProvider, PhaseName } from "../ai/hybrid-provider.js";
@@ -637,8 +637,39 @@ export class Orchestrator {
             queued: queuedCount,
           });
 
-          // 結果をログに保存
-          await this.saveResearchLog(result);
+          // 統一ログシステム用: cycleDataに格納
+          const researchData: ResearchCycleData = {
+            type: "research",
+            topic: {
+              id: result.topic.id,
+              topic: result.topic.topic,
+              source: result.topic.source,
+              priority: result.topic.priority,
+              relatedGoalId: result.topic.relatedGoalId,
+            },
+            findings: result.findings.map(f => ({
+              source: f.source,
+              summary: f.summary,
+              relevance: f.relevance,
+            })),
+            approaches: result.approaches.map(a => ({
+              id: a.id,
+              description: a.description,
+              pros: a.pros,
+              cons: a.cons,
+              estimatedEffort: a.estimatedEffort,
+              confidence: a.confidence,
+            })),
+            recommendations: result.recommendations,
+            queuedImprovements: queuedCount,
+          };
+          context.cycleData = researchData;
+
+          // 統一ログシステムでMDログを保存
+          await cycleLogger.saveLog(context, true, false);
+
+          // JSONバックアップも保存（デバッグ用）
+          await this.saveResearchJsonBackup(result);
         } catch (err) {
           logger.warn("Research topic failed", {
             topic: topic.topic,
@@ -659,12 +690,12 @@ export class Orchestrator {
   }
 
   /**
-   * Research結果をログに保存
+   * Research結果のJSONバックアップを保存（デバッグ用）
    */
-  private async saveResearchLog(result: import("../research/types.js").ResearchResult): Promise<void> {
+  private async saveResearchJsonBackup(result: import("../research/types.js").ResearchResult): Promise<void> {
     try {
       const { writeFileSync, existsSync, mkdirSync } = await import("fs");
-      const logDir = "./workspace/logs";
+      const logDir = "./workspace/logs/research-json";
       if (!existsSync(logDir)) {
         mkdirSync(logDir, { recursive: true });
       }
@@ -672,9 +703,9 @@ export class Orchestrator {
       const date = new Date().toISOString().split("T")[0];
       const filename = `${logDir}/${date}-research-${result.topic.id}.json`;
       writeFileSync(filename, JSON.stringify(result, null, 2));
-      logger.debug("Research log saved", { filename });
+      logger.debug("Research JSON backup saved", { filename });
     } catch (err) {
-      logger.warn("Failed to save research log", {
+      logger.warn("Failed to save research JSON backup", {
         error: err instanceof Error ? err.message : String(err),
       });
     }

@@ -1,6 +1,56 @@
 import { Goal, GoalProgress } from "../goals/types.js";
 import { Trouble } from "../trouble/types.js";
 
+// ========================================
+// サイクルタイプシステム（統一ログ用）
+// ========================================
+
+/**
+ * サイクルタイプの定義
+ * 新しいサイクルタイプを追加する場合はここに追加
+ */
+export type CycleType = "repair" | "research" | "optimize" | "refactor";
+
+/**
+ * タイプ別データの基底インターフェース
+ */
+export interface CycleTypeData {
+  type: CycleType;
+}
+
+/**
+ * リサーチ用データ
+ */
+export interface ResearchCycleData extends CycleTypeData {
+  type: "research";
+  topic: {
+    id: string;
+    topic: string;
+    source: string;
+    priority: number;
+    relatedGoalId?: string;
+  };
+  findings: Array<{
+    source: string;
+    summary: string;
+    relevance: number;
+  }>;
+  approaches: Array<{
+    id: string;
+    description: string;
+    pros: string[];
+    cons: string[];
+    estimatedEffort: string;
+    confidence: number;
+  }>;
+  recommendations: string[];
+  queuedImprovements: number;
+}
+
+// ========================================
+// 既存の型定義
+// ========================================
+
 export interface Issue {
   id: string;
   type: "error" | "warning" | "critical";
@@ -100,6 +150,9 @@ export interface CycleContext {
     byPhase: Record<string, { input: number; output: number }>;
     byProvider: Record<string, { input: number; output: number }>;
   };
+
+  // 統一サイクルログ用: タイプ別データ
+  cycleData?: CycleTypeData;
 }
 
 export interface Phase {

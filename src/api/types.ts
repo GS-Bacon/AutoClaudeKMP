@@ -98,6 +98,8 @@ export interface MarkdownLogContentResponse {
 }
 
 // Cycle types
+export type CycleType = "repair" | "research" | "optimize" | "refactor";
+
 export interface CycleIssue {
   type: "error" | "warn" | "info";
   message: string;
@@ -125,7 +127,7 @@ export interface CycleSummary {
   issueCount: number;
   changeCount: number;
   troubleCount: number;
-  cycleType?: "repair" | "research";  // サイクルの種類
+  cycleType?: CycleType;              // サイクルの種類
   researchTopic?: string;             // リサーチの場合のトピック
   findingsCount?: number;             // リサーチの場合の発見数
   approachesCount?: number;           // リサーチの場合のアプローチ数
@@ -143,6 +145,7 @@ export interface CycleDetail {
   troubles: CycleTrouble[];
   tokenUsage?: { input: number; output: number };
   rawContent: string;
+  cycleType?: CycleType;
 }
 
 export interface CycleListResponse {
