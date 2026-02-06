@@ -8,6 +8,7 @@
 import { ClaudeProvider } from "../ai/claude-provider.js";
 import { logger } from "../core/logger.js";
 import { Goal } from "../goals/types.js";
+import { improvementQueue } from "../improvement-queue/index.js";
 import {
   ResearchTopic,
   ResearchResult,
@@ -95,10 +96,80 @@ export class Researcher {
   }
 
   /**
+   * トピックが過去に処理済みかチェック
+   */
+  async isTopicAlreadyProcessed(topic: ResearchTopic): Promise<{
+    processed: boolean;
+    reason?: string;
+  }> {
+    if (!topic.relatedGoalId) {
+      return { processed: false };
+    }
+
+    try {
+      // 過去の改善キューを検索
+      const allItems = await improvementQueue.getAll();
+      const relatedImprovements = allItems.filter(
+        (i) => i.relatedGoalId === topic.relatedGoalId
+      );
+
+      // 完了済みのものがあれば
+      const completed = relatedImprovements.filter((i) => i.status === "completed");
+      if (completed.length > 0) {
+        return {
+          processed: true,
+          reason: `Already implemented: ${completed.length} related improvements completed`,
+        };
+      }
+
+      // 最近却下されたものがあれば（7日以内）
+      const recentSkipped = relatedImprovements.filter((i) => {
+        if (i.status !== "skipped") return false;
+        const skippedAt = new Date(i.updatedAt);
+        const daysSinceSkipped =
+          (Date.now() - skippedAt.getTime()) / (1000 * 60 * 60 * 24);
+        return daysSinceSkipped < 7;
+      });
+
+      if (recentSkipped.length > 0) {
+        return {
+          processed: true,
+          reason: `Recently rejected: ${recentSkipped.length} related improvements skipped within 7 days`,
+        };
+      }
+
+      return { processed: false };
+    } catch (error) {
+      logger.warn("Failed to check if topic already processed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return { processed: false };
+    }
+  }
+
+  /**
    * トピックを調査
    */
   async research(topic: ResearchTopic): Promise<ResearchResult> {
     logger.info("Starting research", { topic: topic.topic });
+
+    // 重複チェック
+    const check = await this.isTopicAlreadyProcessed(topic);
+    if (check.processed) {
+      logger.info("Skipping research for already processed topic", {
+        topic: topic.topic,
+        reason: check.reason,
+      });
+      return {
+        topic,
+        findings: [],
+        approaches: [],
+        recommendations: [],
+        timestamp: new Date().toISOString(),
+        skipped: true,
+        skipReason: check.reason,
+      };
+    }
 
     const prompt = this.buildResearchPrompt(topic);
 
@@ -154,36 +225,78 @@ export class Researcher {
    * 調査プロンプトを生成
    */
   private buildResearchPrompt(topic: ResearchTopic): string {
-    return `あなたは技術調査エージェントです。以下の目標について調査してください。
+    return `あなたは技術調査エージェントです。以下の目標について**幅広い視点で**調査してください。
 
 ## 目標
 ${topic.topic}
 
 ${topic.context ? `## 追加コンテキスト\n${topic.context}` : ""}
 
-## タスク
-1. Web検索を使って、この目標に関連する最新のベストプラクティス、ライブラリ、手法を調査
-2. 複数の解決アプローチを提案（各アプローチのメリット・デメリット付き）
-3. 現在のコードベースに適用可能な具体的な改善案を出力
+${this.getSystemContext()}
+
+## 調査の観点（すべて検討すること）
+
+### 1. 技術的アプローチ
+- 業界のベストプラクティス、ライブラリ、実装手法
+
+### 2. 戦略的アプローチ（重要）
+- コスト最適化の代替戦略
+- リソースの役割分担の最適化
+- 例: 安価なモデル（GLM4等）で事前検証/セルフレビュー → 高価なモデル（Claude）は最終判断のみ
+- 例: 複数の安価なモデルで多角的検証 → 品質維持しながらコスト削減
+
+### 3. 創造的アプローチ
+- 従来の方法にとらわれない新しいアイデア
+- 問題の再定義（本当に解決すべき問題は何か？）
+- 間接的なアプローチ（問題を回避する方法）
+
+### 4. トレードオフ分析
+- コスト vs 品質 vs 速度のバランス
+- 短期的効果 vs 長期的メンテナンス性
 
 ## 出力形式（JSON）
 必ず以下のJSON形式で出力してください。JSON以外のテキストは含めないでください。
 
 {
   "findings": [
-    {"source": "調査元（URLまたは情報源の説明）", "summary": "発見した内容の要約"}
+    {"source": "調査元", "summary": "発見内容", "category": "technical|strategic|creative"}
   ],
   "approaches": [
     {
       "description": "アプローチの説明（具体的な実装方法を含む）",
+      "category": "technical|strategic|creative",
       "pros": ["メリット1", "メリット2"],
       "cons": ["デメリット1"],
       "effort": "low|medium|high",
-      "confidence": 0.0から1.0の数値（実現可能性と効果の確信度）
+      "confidence": 0.0から1.0の数値,
+      "costImpact": "reduce|neutral|increase"
     }
   ],
-  "recommendations": ["具体的な改善提案1", "具体的な改善提案2"]
+  "recommendations": [
+    "【P1・即実装】具体的な技術提案",
+    "【P2・中期】戦略的な提案",
+    "【P3・長期/実験】創造的な提案"
+  ]
 }`;
+  }
+
+  /**
+   * 現在のシステム構成情報を取得
+   */
+  private getSystemContext(): string {
+    return `## 現在のシステム構成
+- 高品質モデル: Claude Sonnet/Opus（高コスト、高精度）
+- 安価モデル: GLM4（低コスト）、OpenCode/aider（ローカル、無料）
+- ハイブリッド構成: フェーズごとにモデルを使い分け可能
+
+## コスト情報（参考）
+- Claude: 入力$3/100万トークン、出力$15/100万トークン
+- GLM4: 入力約$0.1/100万トークン、出力約$0.2/100万トークン
+
+## 最適化の方向性
+- 高コストモデルの使用を最小化
+- 安価モデルで可能な処理は積極的に移譲
+- 品質が必要な判断のみ高コストモデルを使用`;
   }
 
   /**

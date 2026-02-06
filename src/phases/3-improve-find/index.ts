@@ -12,6 +12,7 @@ import {
   AIImprovement,
 } from "../../learning/index.js";
 import { improvementQueue, QueuedImprovement } from "../../improvement-queue/index.js";
+import { improvementReviewer } from "../../improvement-queue/reviewer.js";
 
 export class ImproveFindPhase implements Phase {
   name = "improve-find";
@@ -146,13 +147,38 @@ export class ImproveFindPhase implements Phase {
       });
     }
 
-    // 4. 改善キューから優先度の高い項目を取得
+    // 4. 改善キューから優先度の高い項目を取得 + AIレビュー
     try {
       const queuedImprovements = await improvementQueue.getPending(5);
       for (const queued of queuedImprovements) {
-        context.improvements.push(this.mapQueuedToImprovement(queued));
+        // AIレビューで実装判断
+        const review = await improvementReviewer.review(queued);
+
+        if (review.approved) {
+          context.improvements.push(this.mapQueuedToImprovement(queued));
+          await improvementQueue.updateStatus(queued.id, "in_progress");
+          logger.info("Improvement approved for implementation", {
+            id: queued.id,
+            title: queued.title.substring(0, 50),
+            reason: review.reason,
+          });
+        } else {
+          // 却下された場合はskippedに
+          await improvementQueue.updateStatus(queued.id, "skipped", {
+            success: false,
+            message: review.reason,
+          });
+          logger.info("Improvement rejected by AI review", {
+            id: queued.id,
+            title: queued.title.substring(0, 50),
+            reason: review.reason,
+            concerns: review.concerns,
+          });
+        }
       }
-      logger.debug("Added queued improvements", { count: queuedImprovements.length });
+      logger.debug("Processed queued improvements with AI review", {
+        total: queuedImprovements.length,
+      });
     } catch (error) {
       logger.debug("Failed to get queued improvements", { error });
     }
@@ -276,6 +302,8 @@ export class ImproveFindPhase implements Phase {
       testing: "todo",
       security: "security",
       performance: "optimization",
+      "research-finding": "optimization",
+      recommendation: "todo",
     };
 
     return {
@@ -284,6 +312,7 @@ export class ImproveFindPhase implements Phase {
       description: `[Queue: ${queued.source}] ${queued.title}`,
       file: queued.relatedFile || "",
       priority: queued.priority > 70 ? "high" : queued.priority > 40 ? "medium" : "low",
+      source: "queue",
     };
   }
 }

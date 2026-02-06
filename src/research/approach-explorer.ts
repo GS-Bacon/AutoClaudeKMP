@@ -19,18 +19,10 @@ export class ApproachExplorer {
    * 調査結果から有望なアプローチを抽出してキューに登録
    */
   async processResearchResult(result: ResearchResult): Promise<number> {
-    const qualifiedApproaches = this.filterQualifiedApproaches(result.approaches);
-
-    if (qualifiedApproaches.length === 0) {
-      logger.debug("No qualified approaches found", {
-        topic: result.topic.topic,
-        totalApproaches: result.approaches.length,
-        minConfidence: this.config.minConfidenceToQueue,
-      });
-      return 0;
-    }
-
     let queuedCount = 0;
+
+    // 1. Approachesの処理（信頼度フィルタリング）
+    const qualifiedApproaches = this.filterQualifiedApproaches(result.approaches);
 
     for (const approach of qualifiedApproaches) {
       const improvementItem = this.createImprovementItem(result, approach);
@@ -52,7 +44,56 @@ export class ApproachExplorer {
       }
     }
 
-    return queuedCount;
+    // 2. Recommendationsの処理（キュー登録）
+    let recommendationCount = 0;
+    for (const rec of result.recommendations) {
+      try {
+        const priority = this.parseRecommendationPriority(rec);
+        improvementQueue.enqueue({
+          source: "research",
+          type: "recommendation",
+          title: rec.substring(0, 100),
+          description: rec,
+          priority,
+          relatedGoalId: result.topic.relatedGoalId,
+          metadata: {
+            researchTopicId: result.topic.id,
+            researchTimestamp: result.timestamp,
+          },
+        });
+        recommendationCount++;
+      } catch (err) {
+        logger.warn("Failed to queue recommendation", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    if (recommendationCount > 0) {
+      logger.info("Recommendations queued", { count: recommendationCount });
+    }
+
+    if (qualifiedApproaches.length === 0 && recommendationCount === 0) {
+      logger.debug("No qualified items found to queue", {
+        topic: result.topic.topic,
+        totalApproaches: result.approaches.length,
+        totalRecommendations: result.recommendations.length,
+        minConfidence: this.config.minConfidenceToQueue,
+      });
+    }
+
+    return queuedCount + recommendationCount;
+  }
+
+  /**
+   * Recommendationの優先度を解析
+   * 【P1】→90, 【P2】→60, 【P3】→30, その他→50
+   */
+  private parseRecommendationPriority(rec: string): number {
+    if (rec.includes("【P1") || rec.includes("[P1")) return 90;
+    if (rec.includes("【P2") || rec.includes("[P2")) return 60;
+    if (rec.includes("【P3") || rec.includes("[P3")) return 30;
+    return 50;
   }
 
   /**

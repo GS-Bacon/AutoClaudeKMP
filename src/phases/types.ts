@@ -72,6 +72,7 @@ export interface Improvement {
   file: string;
   line?: number;
   priority: "low" | "medium" | "high";
+  source?: "queue" | "marker" | "pattern" | "goal";  // 改善の出所
 }
 
 export interface SearchResult {

@@ -303,7 +303,8 @@ class ImprovementQueue {
   /**
    * 全てのキューを取得
    */
-  getAll(): QueuedImprovement[] {
+  async getAll(): Promise<QueuedImprovement[]> {
+    await this.load();
     return [...this.queue];
   }
 }

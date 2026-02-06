@@ -5,6 +5,8 @@ export interface ImplementationChange {
   newContent?: string;
   success: boolean;
   error?: string;
+  summary?: string;       // 変更内容の要約
+  relatedIssue?: string;  // 関連するIssue/Improvement ID
 }
 
 export interface ImplementationResult {

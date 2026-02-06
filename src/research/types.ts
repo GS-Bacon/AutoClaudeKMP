@@ -48,6 +48,8 @@ export interface ResearchResult {
   approaches: Approach[];
   recommendations: string[];                  // 具体的な改善提案
   timestamp: string;
+  skipped?: boolean;                          // 重複チェックでスキップされた
+  skipReason?: string;                        // スキップ理由
 }
 
 /**

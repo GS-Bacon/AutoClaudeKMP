@@ -273,6 +273,29 @@ export class Orchestrator {
         logger.warn("Failed to flush troubles", { error });
       }
 
+      // Update improvement queue status for processed improvements
+      try {
+        const cycleSuccess = !this.hasCriticalFailure;
+        for (const imp of context.improvements) {
+          if (imp.source === "queue") {
+            await improvementQueue.updateStatus(
+              imp.id,
+              cycleSuccess ? "completed" : "failed",
+              {
+                success: cycleSuccess,
+                message: cycleSuccess ? "Processed in cycle" : "Cycle failed",
+              },
+              context.cycleId
+            );
+          }
+        }
+        logger.debug("Updated improvement queue status for processed items", {
+          count: context.improvements.filter((i) => i.source === "queue").length,
+        });
+      } catch (error) {
+        logger.warn("Failed to update improvement queue status", { error });
+      }
+
       await eventBus.emit({
         type: "cycle_completed",
         timestamp: new Date(),

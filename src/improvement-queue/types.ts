@@ -35,7 +35,8 @@ export type ImprovementType =
   | "testing"
   | "security"
   | "performance"
-  | "research-finding";
+  | "research-finding"
+  | "recommendation";
 
 export interface QueuedImprovement {
   id: string;
