@@ -17,11 +17,11 @@
         "content": "Remove console.log statements for production"
       },
       "stats": {
-        "usageCount": 0,
+        "usageCount": 156,
         "successCount": 0,
-        "confidence": 0.9,
-        "lastUsed": "",
-        "phase": "initial"
+        "confidence": 0,
+        "phase": "stable",
+        "lastUsed": "2026-02-07T03:57:38.038Z"
       },
       "history": [
         {
@@ -48,11 +48,11 @@
         "content": "Analyze imports and remove unused ones"
       },
       "stats": {
-        "usageCount": 0,
+        "usageCount": 156,
         "successCount": 0,
-        "confidence": 0.85,
-        "lastUsed": "",
-        "phase": "initial"
+        "confidence": 0,
+        "phase": "stable",
+        "lastUsed": "2026-02-07T03:57:38.038Z"
       },
       "history": [
         {
@@ -84,11 +84,11 @@
         "content": "Replace 'any' type with proper type annotation"
       },
       "stats": {
-        "usageCount": 0,
+        "usageCount": 66,
         "successCount": 0,
-        "confidence": 0.8,
-        "lastUsed": "",
-        "phase": "initial"
+        "confidence": 0,
+        "phase": "stable",
+        "lastUsed": "2026-02-06T04:53:56.884Z"
       },
       "history": [
         {
@@ -115,11 +115,11 @@
         "content": "Add error handling or logging to empty catch block"
       },
       "stats": {
-        "usageCount": 0,
+        "usageCount": 6,
         "successCount": 0,
-        "confidence": 0.85,
-        "lastUsed": "",
-        "phase": "initial"
+        "confidence": 0,
+        "phase": "maturing",
+        "lastUsed": "2026-02-06T14:33:49.006Z"
       },
       "history": [
         {
@@ -146,11 +146,11 @@
         "content": "Analyze and resolve TODO/FIXME comment"
       },
       "stats": {
-        "usageCount": 0,
+        "usageCount": 156,
         "successCount": 0,
-        "confidence": 0.75,
-        "lastUsed": "",
-        "phase": "initial"
+        "confidence": 0,
+        "phase": "stable",
+        "lastUsed": "2026-02-07T03:57:38.038Z"
       },
       "history": [
         {
@@ -177,11 +177,11 @@
         "content": "Extract magic number to named constant"
       },
       "stats": {
-        "usageCount": 0,
+        "usageCount": 156,
         "successCount": 0,
-        "confidence": 0.7,
-        "lastUsed": "",
-        "phase": "initial"
+        "confidence": 0,
+        "phase": "stable",
+        "lastUsed": "2026-02-07T03:57:38.038Z"
       },
       "history": [
         {
@@ -193,5 +193,5 @@
       "createdAt": "2026-02-05T00:00:00.000Z"
     }
   ],
-  "lastUpdated": "2026-02-05T00:00:00.000Z"
+  "lastUpdated": "2026-02-07T03:57:38.040Z"
 }

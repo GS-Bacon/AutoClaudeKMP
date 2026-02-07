@@ -1,9 +1,40 @@
 {
-  "totalCycles": 0,
-  "patternHits": 0,
+  "totalCycles": 202,
+  "patternHits": 13092,
   "aiCalls": 0,
-  "patternHitRate": 0,
-  "avgConfidence": 0.85,
-  "topPatterns": [],
-  "lastUpdated": "2026-02-05T00:00:00.000Z"
+  "patternHitRate": 1,
+  "avgConfidence": 0,
+  "topPatterns": [
+    {
+      "id": "console-log-removal",
+      "name": "console.log の削除",
+      "usage": 156
+    },
+    {
+      "id": "unused-import",
+      "name": "未使用importの検出",
+      "usage": 156
+    },
+    {
+      "id": "todo-fixme-marker",
+      "name": "TODO/FIXME マーカー",
+      "usage": 156
+    },
+    {
+      "id": "magic-number",
+      "name": "マジックナンバー",
+      "usage": 156
+    },
+    {
+      "id": "any-type-usage",
+      "name": "any型の使用",
+      "usage": 66
+    },
+    {
+      "id": "empty-catch-block",
+      "name": "空のcatchブロック",
+      "usage": 6
+    }
+  ],
+  "lastUpdated": "2026-02-07T03:57:38.040Z"
 }

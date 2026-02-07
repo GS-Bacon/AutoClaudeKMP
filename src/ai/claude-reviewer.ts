@@ -8,7 +8,7 @@ import { existsSync, readFileSync } from "fs";
 import { logger } from "../core/logger.js";
 import { ClaudeProvider } from "./claude-provider.js";
 import { ChangeTracker, TrackedChange, ReviewResult, changeTracker } from "./change-tracker.js";
-import { improvementQueue } from "../improvement-queue/index.js";
+import { improvementQueue } from "../improvement-queue/queue.js";
 import type { ImprovementSource, ImprovementType } from "../improvement-queue/types.js";
 import { parseJSONObject } from "./json-parser.js";
 

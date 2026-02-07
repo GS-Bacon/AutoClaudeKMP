@@ -22,6 +22,11 @@ const COOLDOWN_STEPS_MS = [
   7 * 24 * 60 * 60 * 1000, // 7日
 ];
 
+/** 同一ファイルがN回以上失敗したらファイル単位でブロック */
+const FILE_FAILURE_THRESHOLD = 3;
+/** ファイルレベルのクールダウン: 最終失敗から24時間 */
+const FILE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
 export interface FailureRecord {
   id: string;
   file: string;
@@ -128,8 +133,35 @@ export class ImplementationFailureTracker {
       cycleId,
     });
 
+    // ファイルレベルの累積失敗を警告
+    const fileFailureCount = this.failures.filter(f => f.file === file).length;
+    if (fileFailureCount >= FILE_FAILURE_THRESHOLD) {
+      logger.warn("File repeatedly failing across different improvements", {
+        file,
+        totalFileFailures: fileFailureCount,
+        fileBlockedFor: "24h from last failure",
+        cycleId,
+      });
+    }
+
     await this.save();
     return record;
+  }
+
+  /**
+   * ファイル単位でブラックリスト判定。
+   * description に関係なく、同一ファイルが FILE_FAILURE_THRESHOLD 回以上
+   * 失敗していれば、最終失敗から FILE_COOLDOWN_MS の間ブロックする。
+   */
+  async isFileBlacklisted(file: string): Promise<boolean> {
+    await this.load();
+    const fileFailures = this.failures.filter(f => f.file === file);
+    if (fileFailures.length < FILE_FAILURE_THRESHOLD) return false;
+
+    const latestMs = Math.max(
+      ...fileFailures.map(f => new Date(f.lastFailedAt).getTime())
+    );
+    return latestMs + FILE_COOLDOWN_MS > Date.now();
   }
 
   /**
@@ -138,6 +170,22 @@ export class ImplementationFailureTracker {
   async isBlacklisted(file: string, description: string): Promise<boolean> {
     await this.load();
 
+    // ファイルレベルチェック（description問わず繰り返し失敗を検出）
+    const fileFailures = this.failures.filter(f => f.file === file);
+    if (fileFailures.length >= FILE_FAILURE_THRESHOLD) {
+      const latestMs = Math.max(
+        ...fileFailures.map(f => new Date(f.lastFailedAt).getTime())
+      );
+      if (latestMs + FILE_COOLDOWN_MS > Date.now()) {
+        logger.info("File-level blacklist active", {
+          file,
+          fileFailureCount: fileFailures.length,
+        });
+        return true;
+      }
+    }
+
+    // 既存: description レベルチェック
     const descHash = this.hashDescription(description);
     const record = this.failures.find(
       (f) => f.file === file && f.descriptionHash === descHash
