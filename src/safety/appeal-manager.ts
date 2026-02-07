@@ -1,14 +1,14 @@
 /**
- * 簡略化レビュー管理
+ * 3段階レビュー（三審制）
  *
- * 2段階レビュー: 初回レビュー → 拒否時は理由付きで1回リトライ
- * 旧三審制（MultiJudgeReviewer + RejectionAnalyzer）を統合・簡略化
+ * 第一審 → 控訴審 → 上告審の最大3段階で審理
+ * 各審理結果をTrialRecordとして蓄積し、前審の履歴を次審に引き継ぐ
  */
 
 import { logger } from "../core/logger.js";
 import { ClaudeProvider } from "../ai/claude-provider.js";
 import { parseJSONObject } from "../ai/json-parser.js";
-import { TrialSystemResult } from "./review-types.js";
+import { TrialSystemResult, TrialRecord, TrialLevel } from "./review-types.js";
 
 export class AppealManager {
   private claudeProvider: ClaudeProvider;
@@ -18,49 +18,45 @@ export class AppealManager {
   }
 
   /**
-   * 最大2回のレビューを実行
-   * 1回目で拒否された場合、拒否理由を添えて1回だけリトライ
+   * 三審制レビュー: 最大3回の審理を実行
+   * 第一審 → 控訴審 → 上告審。承認された時点で終了。
    */
   async runTrialSystem(
     filePath: string,
     changeDescription: string,
     proposedCode?: string
   ): Promise<TrialSystemResult> {
-    logger.info("Protected file review started", { file: filePath });
+    logger.info("Protected file review started (三審制)", { file: filePath });
 
-    // 第1回レビュー
-    const firstResult = await this.reviewOnce(filePath, changeDescription, proposedCode);
+    const trialLevels: TrialLevel[] = ["first", "appeal", "final"];
+    const trialHistory: TrialRecord[] = [];
 
-    if (firstResult.approved) {
-      logger.info("Review approved on first attempt", { file: filePath });
-      return {
-        approved: true,
-        trialsCompleted: 1,
-        trialHistory: [],
-        finalReason: firstResult.reason,
-      };
+    for (let i = 0; i < trialLevels.length; i++) {
+      const level = trialLevels[i];
+      const previousRejections = trialHistory
+        .filter(t => !t.approved)
+        .map(t => `[${t.level}] ${t.reason}`);
+
+      const result = await this.reviewOnce(
+        filePath, changeDescription, proposedCode,
+        previousRejections.length > 0 ? previousRejections.join("\n") : undefined
+      );
+
+      trialHistory.push({
+        level, approved: result.approved,
+        reason: result.reason, timestamp: new Date().toISOString(),
+      });
+
+      if (result.approved) {
+        return { approved: true, trialsCompleted: i + 1, trialHistory, finalReason: result.reason };
+      }
+
+      logger.info(`Review rejected at ${level} trial`, { file: filePath, reason: result.reason });
     }
 
-    // 拒否された場合、理由を添えて1回リトライ
-    logger.info("First review rejected, retrying with context", {
-      file: filePath,
-      reason: firstResult.reason,
-    });
-
-    const retryResult = await this.reviewOnce(
-      filePath,
-      changeDescription,
-      proposedCode,
-      firstResult.reason
-    );
-
     return {
-      approved: retryResult.approved,
-      trialsCompleted: 2,
-      trialHistory: [],
-      finalReason: retryResult.approved
-        ? retryResult.reason
-        : `Rejected after retry: ${retryResult.reason}`,
+      approved: false, trialsCompleted: 3, trialHistory,
+      finalReason: `全3審で拒否: ${trialHistory[trialHistory.length - 1].reason}`,
     };
   }
 
@@ -109,10 +105,10 @@ ${proposedCode.slice(0, 1500)}
     if (previousRejectionReason) {
       prompt += `
 
-## 前回の拒否理由
+## 前回までの審理結果
 ${previousRejectionReason}
 
-上記の拒否理由を踏まえ、変更の正当性を再評価してください。`;
+上記の審理履歴を踏まえ、変更の正当性を再評価してください。正当な改善であれば承認してください。`;
     }
 
     prompt += `

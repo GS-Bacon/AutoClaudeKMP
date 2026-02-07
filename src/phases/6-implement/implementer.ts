@@ -58,54 +58,10 @@ export class CodeImplementer {
       );
 
       if (conditionallyProtectedFiles.length > 0) {
-        logger.info("Conditionally protected files detected, requesting trial system review", {
+        logger.info("Conditionally protected files detected, review will occur after code generation", {
           files: conditionallyProtectedFiles,
         });
-
-        const changeDesc = plan.description || `Plan ${plan.id}: ${plan.targetIssue?.message || plan.targetImprovement?.description || "Unknown"}`;
-
-        // 三審制レビュー: 全件に対して実施
-        let trialResult = { approved: true, trialsCompleted: 0, trialHistory: [] as unknown[], finalReason: "" };
-        for (const protectedFile of conditionallyProtectedFiles) {
-          const result = await guard.reviewWithTrialSystem(
-            protectedFile,
-            changeDesc
-          );
-          if (!result.approved) {
-            trialResult = result;
-            break;
-          }
-          trialResult = result;
-        }
-
-        if (trialResult.approved) {
-          logger.info("Protected file change approved by trial system", {
-            files: conditionallyProtectedFiles,
-            trialsCompleted: trialResult.trialsCompleted,
-            reason: trialResult.finalReason,
-          });
-          // 続行を許可（validationを上書き）
-        } else {
-          logger.warn("Protected file change rejected by trial system - skipping plan", {
-            files: conditionallyProtectedFiles,
-            trialsCompleted: trialResult.trialsCompleted,
-            reason: trialResult.finalReason,
-          });
-          // success: trueでスキップ（サイクル失敗にしない）
-          return {
-            planId: plan.id,
-            changes: [],
-            snapshotId: "",
-            success: true,  // サイクルは成功扱い
-            skipped: true,  // スキップされたことを示す
-            skipReason: `Trial system rejected (${trialResult.trialsCompleted}審完了): ${trialResult.finalReason}`,
-            appealHistory: {
-              trialsCompleted: trialResult.trialsCompleted,
-              approved: false,
-              finalReason: trialResult.finalReason,
-            },
-          };
-        }
+        // レビューはコード生成後に modifyFile/createFile 内で実施
       } else {
         // 保護ファイル以外の理由でブロックされた場合
         logger.error("Change blocked by guard", { reason: validation.reason });
@@ -160,7 +116,7 @@ export class CodeImplementer {
 
         switch (step.action) {
           case "create":
-            change = await this.createFile(fullPath, step.details);
+            change = await this.createFile(fullPath, step.details, plan);
             break;
           case "modify":
             change = await this.modifyFile(fullPath, step.details, plan);
@@ -218,7 +174,7 @@ export class CodeImplementer {
     }
   }
 
-  private async createFile(filePath: string, details: string): Promise<ImplementationChange> {
+  private async createFile(filePath: string, details: string, plan?: RepairPlan): Promise<ImplementationChange> {
     try {
       const ai = getAIProvider();
 
@@ -276,6 +232,22 @@ export class CodeImplementer {
           file: filePath,
           reason: aiReview.reason,
         });
+      }
+
+      // 三審制レビュー: 条件付き保護ファイルの場合、生成コードで審理
+      if (guard.isConditionallyProtected(filePath)) {
+        const changeDesc = plan?.description || `Creating: ${details.slice(0, 200)}`;
+        const trialResult = await guard.reviewWithTrialSystem(filePath, changeDesc, newContent);
+        if (!trialResult.approved) {
+          logger.warn("Protected file creation rejected by trial system", {
+            file: filePath, trialsCompleted: trialResult.trialsCompleted, reason: trialResult.finalReason,
+          });
+          return {
+            file: filePath, changeType: "create", success: false,
+            error: `Trial system rejected (${trialResult.trialsCompleted}審完了): ${trialResult.finalReason}`,
+          };
+        }
+        logger.info("Protected file creation approved by trial system", { file: filePath });
       }
 
       const dir = dirname(filePath);
@@ -337,7 +309,7 @@ export class CodeImplementer {
   ): Promise<ImplementationChange> {
     try {
       if (!existsSync(filePath)) {
-        return this.createFile(filePath, details);
+        return this.createFile(filePath, details, plan);
       }
 
       const originalContent = readFileSync(filePath, "utf-8");
@@ -429,6 +401,22 @@ export class CodeImplementer {
           file: filePath,
           reason: aiReview.reason,
         });
+      }
+
+      // 三審制レビュー: 条件付き保護ファイルの場合、生成コードで審理
+      if (guard.isConditionallyProtected(filePath)) {
+        const changeDesc = plan.description || `Modify: ${details.slice(0, 200)}`;
+        const trialResult = await guard.reviewWithTrialSystem(filePath, changeDesc, newContent);
+        if (!trialResult.approved) {
+          logger.warn("Protected file modification rejected by trial system", {
+            file: filePath, trialsCompleted: trialResult.trialsCompleted, reason: trialResult.finalReason,
+          });
+          return {
+            file: filePath, changeType: "modify", originalContent, success: false,
+            error: `Trial system rejected (${trialResult.trialsCompleted}審完了): ${trialResult.finalReason}`,
+          };
+        }
+        logger.info("Protected file modification approved by trial system", { file: filePath });
       }
 
       // 安全なファイル書き込み

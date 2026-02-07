@@ -480,12 +480,10 @@ JSONのみを出力してください。`;
       warnings: [`Trial system review: ${filePath}`],
       context: `三審制レビュー（${result.trialsCompleted}審完了）: ${changeDescription}`,
       dangerousPatterns: [],
-      claudeVerdict: result.trialHistory.length > 0
-        ? {
-            approved: result.approved,
-            reason: result.finalReason,
-          }
-        : null,
+      claudeVerdict: {
+        approved: result.approved,
+        reason: result.finalReason,
+      },
       openCodeVerdict: null,
       finalDecision: result.approved ? "approved" : "rejected",
       decisionReason: result.finalReason,
