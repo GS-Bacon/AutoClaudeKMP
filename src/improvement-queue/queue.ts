@@ -159,6 +159,15 @@ class ImprovementQueue {
       improvement.completedAt = new Date().toISOString();
     }
 
+    if (status === "failed") {
+      improvement.failedAttempts = (improvement.failedAttempts || 0) + 1;
+      improvement.lastFailureError = result?.message || "Unknown error";
+      logger.debug("Improvement failed attempt tracked", {
+        id,
+        failedAttempts: improvement.failedAttempts,
+      });
+    }
+
     if (result) {
       improvement.result = result;
     }
@@ -208,7 +217,7 @@ class ImprovementQueue {
     await this.load();
 
     const pending = this.queue
-      .filter((i) => i.status === "pending")
+      .filter((i) => i.status === "pending" && (i.failedAttempts || 0) < 3)
       .sort((a, b) => b.priority - a.priority);
 
     return limit ? pending.slice(0, limit) : pending;

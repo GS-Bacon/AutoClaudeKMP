@@ -62,6 +62,10 @@ export interface QueuedImprovement {
   scheduledFor?: string; // 次のサイクルで処理予定
   completedAt?: string;
 
+  // 失敗追跡
+  failedAttempts?: number;
+  lastFailureError?: string;
+
   // 処理結果
   cycleId?: string; // 処理したサイクルID
   result?: {

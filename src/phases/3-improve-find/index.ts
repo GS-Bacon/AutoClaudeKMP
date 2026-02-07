@@ -11,7 +11,7 @@ import {
   PatternMatch,
   AIImprovement,
 } from "../../learning/index.js";
-import { improvementQueue, QueuedImprovement } from "../../improvement-queue/index.js";
+import { improvementQueue, QueuedImprovement, failureTracker } from "../../improvement-queue/index.js";
 import { improvementReviewer } from "../../improvement-queue/reviewer.js";
 
 export class ImproveFindPhase implements Phase {
@@ -206,6 +206,35 @@ export class ImproveFindPhase implements Phase {
       } catch (error) {
         logger.debug("Goal-based analysis failed", { error });
       }
+    }
+
+    // 6. ブラックリストフィルタリング（失敗した改善を除外）
+    try {
+      const beforeFilter = context.improvements.length;
+      const filtered: typeof context.improvements = [];
+      for (const imp of context.improvements) {
+        if (imp.file && imp.description) {
+          const blacklisted = await failureTracker.isBlacklisted(imp.file, imp.description);
+          if (blacklisted) {
+            logger.info("Skipping blacklisted improvement", {
+              file: imp.file,
+              description: imp.description.substring(0, 80),
+            });
+            continue;
+          }
+        }
+        filtered.push(imp);
+      }
+      context.improvements = filtered;
+      const removed = beforeFilter - context.improvements.length;
+      if (removed > 0) {
+        logger.info("Filtered blacklisted improvements", {
+          removed,
+          remaining: context.improvements.length,
+        });
+      }
+    } catch (error) {
+      logger.debug("Blacklist filtering failed, continuing without", { error });
     }
 
     const totalIssues = context.issues.length;

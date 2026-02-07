@@ -77,6 +77,8 @@ export const QueuedImprovementSchema = z.object({
   preventionSuggestionId: z.string().optional(),
   relatedGoalId: z.string().optional(),
   details: z.string().optional(),
+  failedAttempts: z.number().optional(),
+  lastFailureError: z.string().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   scheduledFor: z.string().optional(),

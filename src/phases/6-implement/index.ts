@@ -2,6 +2,7 @@ import { Phase, PhaseResult, CycleContext } from "../types.js";
 import { CodeImplementer } from "./implementer.js";
 import { snapshotManager } from "../../safety/snapshot.js";
 import { logger } from "../../core/logger.js";
+import { failureTracker } from "../../improvement-queue/failure-blacklist.js";
 
 export class ImplementPhase implements Phase {
   name = "implement";
@@ -48,6 +49,26 @@ export class ImplementPhase implements Phase {
             error: err instanceof Error ? err.message : String(err),
           });
         }
+      }
+
+      // 失敗した変更をブラックリストに記録
+      try {
+        for (const change of failed) {
+          const description = context.plan?.targetImprovement?.description
+            || context.plan?.targetIssue?.message
+            || context.plan?.description
+            || "";
+          await failureTracker.recordFailure(
+            change.file,
+            description,
+            change.error || "Unknown error",
+            context.cycleId
+          );
+        }
+      } catch (err) {
+        logger.debug("Failed to record to blacklist", {
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
 
       return {

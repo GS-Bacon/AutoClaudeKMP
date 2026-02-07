@@ -575,8 +575,8 @@ export class CodeImplementer {
 
       // リトライ時は前回生成コードとエラー内容をプロンプトに追加
       if (attempt > 0 && lastErrors.length > 0) {
-        const truncated = lastGeneratedCode && lastGeneratedCode.length > 4000
-          ? "...(truncated)\n" + lastGeneratedCode.slice(-4000)
+        const truncated = lastGeneratedCode && lastGeneratedCode.length > 6000
+          ? "...(truncated)\n" + lastGeneratedCode.slice(-6000)
           : lastGeneratedCode;
 
         const errorFeedback = `
@@ -584,7 +584,12 @@ export class CodeImplementer {
 [SYNTAX ERROR - RETRY ${attempt + 1}/${SYNTAX_RETRY_CONFIG.maxRetries + 1}]
 Errors: ${lastErrors.join(", ")}
 ${truncated ? `\nYour previous output had these errors:\n\`\`\`\n${truncated}\n\`\`\`` : ""}
-Fix ALL syntax errors. Ensure all brackets/braces/parentheses are balanced.
+
+CRITICAL INSTRUCTIONS:
+1. Check bracket balance CAREFULLY before outputting. Count every { } [ ] ( ) pair.
+2. The error messages above include LINE NUMBERS — use them to locate the exact problem.
+3. Do NOT truncate or abbreviate the output. Generate the COMPLETE file.
+4. For deeply nested structures (arrays of objects), verify each level closes properly.
 Generate the complete, corrected TypeScript code.`;
 
         effectivePrompt = prompt + errorFeedback;

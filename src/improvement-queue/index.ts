@@ -12,3 +12,4 @@ export {
   enqueueFromPhase,
 } from "./collectors/index.js";
 export { improvementReviewer, ImprovementReviewer, type ReviewResult } from "./reviewer.js";
+export { failureTracker, ImplementationFailureTracker, type FailureRecord } from "./failure-blacklist.js";

@@ -63,19 +63,29 @@ export class CodeSanitizer {
       return { valid: false, errors };
     }
 
-    // 括弧のバランスチェック
+    // 括弧のバランスチェック（行番号付き）
     const brackets: Record<string, string> = { "(": ")", "[": "]", "{": "}" };
+    const closingToOpening: Record<string, string> = { ")": "(", "]": "[", "}": "{" };
     const closingBrackets = new Set(Object.values(brackets));
-    const stack: string[] = [];
+    const stack: Array<{ expected: string; line: number; char: string }> = [];
     let inString = false;
     let stringChar = "";
     let inComment = false;
     let inMultiLineComment = false;
+    let lineNumber = 1;
 
     for (let i = 0; i < content.length; i++) {
       const char = content[i];
       const prevChar = i > 0 ? content[i - 1] : "";
       const nextChar = i < content.length - 1 ? content[i + 1] : "";
+
+      if (char === "\n") {
+        lineNumber++;
+        if (inComment) {
+          inComment = false;
+        }
+        continue;
+      }
 
       // コメント処理
       if (!inString) {
@@ -85,10 +95,6 @@ export class CodeSanitizer {
         }
         if (!inComment && !inMultiLineComment && char === "/" && nextChar === "*") {
           inMultiLineComment = true;
-          continue;
-        }
-        if (inComment && char === "\n") {
-          inComment = false;
           continue;
         }
         if (inMultiLineComment && char === "*" && nextChar === "/") {
@@ -117,16 +123,25 @@ export class CodeSanitizer {
 
       // 括弧チェック
       if (brackets[char]) {
-        stack.push(brackets[char]);
+        stack.push({ expected: brackets[char], line: lineNumber, char });
       } else if (closingBrackets.has(char)) {
-        if (stack.length === 0 || stack.pop() !== char) {
-          errors.push(`Unbalanced bracket: '${char}' at position ${i}`);
+        if (stack.length === 0) {
+          errors.push(`Unexpected '${char}' at line ${lineNumber} (no matching '${closingToOpening[char]}')`);
+        } else if (stack[stack.length - 1].expected !== char) {
+          const top = stack.pop()!;
+          errors.push(`Mismatched bracket: expected '${top.expected}' (opened '${top.char}' at line ${top.line}) but found '${char}' at line ${lineNumber}`);
+        } else {
+          stack.pop();
         }
       }
     }
 
     if (stack.length > 0) {
-      errors.push(`Unclosed brackets: expected ${stack.join(", ")}`);
+      const unclosed = stack
+        .reverse()
+        .map((s) => `'${s.expected}' (opened '${s.char}' at line ${s.line})`)
+        .join(", ");
+      errors.push(`Unclosed brackets: expected ${unclosed}`);
     }
 
     if (inString) {
